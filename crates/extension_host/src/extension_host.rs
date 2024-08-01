@@ -9,7 +9,7 @@ use crate::{extension_lsp_adapter::ExtensionLspAdapter, wasm_host::wit};
 use anyhow::{anyhow, bail, Context as _, Result};
 use async_compression::futures::bufread::GzipDecoder;
 use async_tar::Archive;
-use client::{telemetry::Telemetry, Client, ExtensionMetadata, GetExtensionsResponse};
+use client::{Client, ExtensionMetadata, GetExtensionsResponse};
 use collections::{btree_map, BTreeMap, HashSet};
 use extension::extension_builder::{CompileExtensionOptions, ExtensionBuilder};
 use extension::Extension;
@@ -168,7 +168,6 @@ pub struct ExtensionStore {
     pub extension_index: ExtensionIndex,
     pub fs: Arc<dyn Fs>,
     pub http_client: Arc<HttpClientWithUrl>,
-    pub telemetry: Option<Arc<Telemetry>>,
     pub reload_tx: UnboundedSender<Option<Arc<str>>>,
     pub reload_complete_senders: Vec<oneshot::Sender<()>>,
     pub installed_dir: PathBuf,
@@ -247,7 +246,6 @@ pub fn init(
             fs,
             client.http_client().clone(),
             client.http_client().clone(),
-            Some(client.telemetry().clone()),
             node_runtime,
             cx,
         )
@@ -279,7 +277,6 @@ impl ExtensionStore {
         fs: Arc<dyn Fs>,
         http_client: Arc<HttpClientWithUrl>,
         builder_client: Arc<dyn HttpClient>,
-        telemetry: Option<Arc<Telemetry>>,
         node_runtime: NodeRuntime,
         cx: &mut ModelContext<Self>,
     ) -> Self {
@@ -309,7 +306,6 @@ impl ExtensionStore {
             wasm_extensions: Vec::new(),
             fs,
             http_client,
-            telemetry,
             reload_tx,
             tasks: Vec::new(),
         };
@@ -1047,17 +1043,6 @@ impl ExtensionStore {
             reload_count,
             extensions_to_unload.len() - reload_count
         );
-
-        if let Some(telemetry) = &self.telemetry {
-            for extension_id in &extensions_to_load {
-                if let Some(extension) = new_index.extensions.get(extension_id) {
-                    telemetry.report_extension_event(
-                        extension_id.clone(),
-                        extension.manifest.version.clone(),
-                    );
-                }
-            }
-        }
 
         let themes_to_remove = old_index
             .themes

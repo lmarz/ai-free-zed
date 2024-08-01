@@ -2,7 +2,7 @@ use crate::headless_project::HeadlessAppState;
 use crate::HeadlessProject;
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
-use client::{telemetry, ProxySettings};
+use client::ProxySettings;
 use fs::{Fs, RealFs};
 use futures::channel::mpsc;
 use futures::{select, select_biased, AsyncRead, AsyncWrite, AsyncWriteExt, FutureExt, SinkExt};
@@ -159,8 +159,8 @@ fn init_panic_hook() {
                 option_env!("ZED_COMMIT_SHA").unwrap_or(&env!("ZED_PKG_VERSION"))
             ),
             release_channel: release_channel::RELEASE_CHANNEL.display_name().into(),
-            os_name: telemetry::os_name(),
-            os_version: Some(telemetry::os_version()),
+            os_name: "".to_string(),
+            os_version: None,
             architecture: env::consts::ARCH.into(),
             panicked_on: Utc::now().timestamp_millis(),
             backtrace,

@@ -13,7 +13,6 @@ path = "src/quick_action_bar.rs"
 doctest = false
 
 [dependencies]
-assistant.workspace = true
 editor.workspace = true
 gpui.workspace = true
 markdown_preview.workspace = true

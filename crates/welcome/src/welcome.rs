@@ -2,7 +2,6 @@ mod base_keymap_picker;
 mod base_keymap_setting;
 mod multibuffer_hint;
 
-use client::{telemetry::Telemetry, TelemetrySettings};
 use db::kvp::KEY_VALUE_STORE;
 use gpui::{
     actions, svg, AppContext, EventEmitter, FocusHandle, FocusableView, InteractiveElement,
@@ -64,7 +63,6 @@ pub fn show_welcome_view(
 pub struct WelcomePage {
     workspace: WeakView<Workspace>,
     focus_handle: FocusHandle,
-    telemetry: Arc<Telemetry>,
     _settings_subscription: Subscription,
 }
 
@@ -128,9 +126,6 @@ impl Render for WelcomePage {
                                             .icon_color(Color::Muted)
                                             .icon_position(IconPosition::Start)
                                             .on_click(cx.listener(|this, _, cx| {
-                                                this.telemetry.report_app_event(
-                                                    "welcome page: change theme".to_string(),
-                                                );
                                                 this.workspace
                                                     .update(cx, |workspace, cx| {
                                                         theme_selector::toggle(
@@ -149,9 +144,6 @@ impl Render for WelcomePage {
                                             .icon_color(Color::Muted)
                                             .icon_position(IconPosition::Start)
                                             .on_click(cx.listener(|this, _, cx| {
-                                                this.telemetry.report_app_event(
-                                                    "welcome page: change keymap".to_string(),
-                                                );
                                                 this.workspace
                                                     .update(cx, |workspace, cx| {
                                                         base_keymap_picker::toggle(
@@ -164,33 +156,12 @@ impl Render for WelcomePage {
                                             })),
                                     )
                                     .child(
-                                        Button::new(
-                                            "sign-in-to-copilot",
-                                            "Sign in to GitHub Copilot",
-                                        )
-                                        .icon(IconName::Copilot)
-                                        .icon_size(IconSize::XSmall)
-                                        .icon_color(Color::Muted)
-                                        .icon_position(IconPosition::Start)
-                                        .on_click(
-                                            cx.listener(|this, _, cx| {
-                                                this.telemetry.report_app_event(
-                                                    "welcome page: sign in to copilot".to_string(),
-                                                );
-                                                inline_completion_button::initiate_sign_in(cx);
-                                            }),
-                                        ),
-                                    )
-                                    .child(
                                         Button::new("edit settings", "Edit Settings")
                                             .icon(IconName::Settings)
                                             .icon_size(IconSize::XSmall)
                                             .icon_color(Color::Muted)
                                             .icon_position(IconPosition::Start)
-                                            .on_click(cx.listener(|this, _, cx| {
-                                                this.telemetry.report_app_event(
-                                                    "welcome page: edit settings".to_string(),
-                                                );
+                                            .on_click(cx.listener(|_, _, cx| {
                                                 cx.dispatch_action(Box::new(
                                                     zed_actions::OpenSettings,
                                                 ));
@@ -214,10 +185,7 @@ impl Render for WelcomePage {
                                                 .icon_size(IconSize::XSmall)
                                                 .icon_color(Color::Muted)
                                                 .icon_position(IconPosition::Start)
-                                                .on_click(cx.listener(|this, _, cx| {
-                                                    this.telemetry.report_app_event(
-                                                        "welcome page: install cli".to_string(),
-                                                    );
+                                                .on_click(cx.listener(|_, _, cx| {
                                                     cx.app_mut()
                                                         .spawn(|cx| async move {
                                                             install_cli::install_cli(&cx).await
@@ -232,10 +200,7 @@ impl Render for WelcomePage {
                                             .icon_size(IconSize::XSmall)
                                             .icon_color(Color::Muted)
                                             .icon_position(IconPosition::Start)
-                                            .on_click(cx.listener(|this, _, cx| {
-                                                this.telemetry.report_app_event(
-                                                    "welcome page: view docs".to_string(),
-                                                );
+                                            .on_click(cx.listener(|_, _, cx| {
                                                 cx.open_url(DOCS_URL);
                                             })),
                                     )
@@ -245,10 +210,7 @@ impl Render for WelcomePage {
                                             .icon_size(IconSize::XSmall)
                                             .icon_color(Color::Muted)
                                             .icon_position(IconPosition::Start)
-                                            .on_click(cx.listener(|this, _, cx| {
-                                                this.telemetry.report_app_event(
-                                                    "welcome page: open extensions".to_string(),
-                                                );
+                                            .on_click(cx.listener(|_, _, cx| {
                                                 cx.dispatch_action(Box::new(
                                                     extensions_ui::Extensions,
                                                 ));
@@ -283,65 +245,11 @@ impl Render for WelcomePage {
                                     ui::Selection::Unselected
                                 },
                                 cx.listener(move |this, selection, cx| {
-                                    this.telemetry
-                                        .report_app_event("welcome page: toggle vim".to_string());
                                     this.update_settings::<VimModeSetting>(
                                         selection,
                                         cx,
                                         |setting, value| *setting = Some(value),
                                     );
-                                }),
-                            ))
-                            .child(CheckboxWithLabel::new(
-                                "enable-crash",
-                                Label::new("Send Crash Reports"),
-                                if TelemetrySettings::get_global(cx).diagnostics {
-                                    ui::Selection::Selected
-                                } else {
-                                    ui::Selection::Unselected
-                                },
-                                cx.listener(move |this, selection, cx| {
-                                    this.telemetry.report_app_event(
-                                        "welcome page: toggle diagnostic telemetry".to_string(),
-                                    );
-                                    this.update_settings::<TelemetrySettings>(selection, cx, {
-                                        let telemetry = this.telemetry.clone();
-
-                                        move |settings, value| {
-                                            settings.diagnostics = Some(value);
-
-                                            telemetry.report_setting_event(
-                                                "diagnostic telemetry",
-                                                value.to_string(),
-                                            );
-                                        }
-                                    });
-                                }),
-                            ))
-                            .child(CheckboxWithLabel::new(
-                                "enable-telemetry",
-                                Label::new("Send Telemetry"),
-                                if TelemetrySettings::get_global(cx).metrics {
-                                    ui::Selection::Selected
-                                } else {
-                                    ui::Selection::Unselected
-                                },
-                                cx.listener(move |this, selection, cx| {
-                                    this.telemetry.report_app_event(
-                                        "welcome page: toggle metric telemetry".to_string(),
-                                    );
-                                    this.update_settings::<TelemetrySettings>(selection, cx, {
-                                        let telemetry = this.telemetry.clone();
-
-                                        move |settings, value| {
-                                            settings.metrics = Some(value);
-
-                                            telemetry.report_setting_event(
-                                                "metric telemetry",
-                                                value.to_string(),
-                                            );
-                                        }
-                                    });
                                 }),
                             )),
                     ),
@@ -351,20 +259,10 @@ impl Render for WelcomePage {
 
 impl WelcomePage {
     pub fn new(workspace: &Workspace, cx: &mut ViewContext<Workspace>) -> View<Self> {
-        let this = cx.new_view(|cx| {
-            cx.on_release(|this: &mut Self, _, _| {
-                this.telemetry
-                    .report_app_event("welcome page: close".to_string());
-            })
-            .detach();
-
-            WelcomePage {
-                focus_handle: cx.focus_handle(),
-                workspace: workspace.weak_handle(),
-                telemetry: workspace.client().telemetry().clone(),
-                _settings_subscription: cx
-                    .observe_global::<SettingsStore>(move |_, cx| cx.notify()),
-            }
+        let this = cx.new_view(|cx| WelcomePage {
+            focus_handle: cx.focus_handle(),
+            workspace: workspace.weak_handle(),
+            _settings_subscription: cx.observe_global::<SettingsStore>(move |_, cx| cx.notify()),
         });
 
         this
@@ -430,7 +328,6 @@ impl Item for WelcomePage {
         Some(cx.new_view(|cx| WelcomePage {
             focus_handle: cx.focus_handle(),
             workspace: self.workspace.clone(),
-            telemetry: self.telemetry.clone(),
             _settings_subscription: cx.observe_global::<SettingsStore>(move |_, cx| cx.notify()),
         }))
     }
