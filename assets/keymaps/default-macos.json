@@ -146,8 +146,6 @@
       "cmd-alt-f": ["buffer_search::Deploy", { "replace_enabled": true }],
       "cmd-alt-l": ["buffer_search::Deploy", { "selection_search_enabled": true }],
       "cmd-e": ["buffer_search::Deploy", { "focus": false }],
-      "cmd->": "assistant::QuoteSelection",
-      "cmd-<": "assistant::InsertIntoEditor",
       "cmd-alt-e": "editor::SelectEnclosingSymbol"
     }
   },
@@ -192,57 +190,11 @@
     }
   },
   {
-    "context": "AssistantPanel",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-k c": "assistant::CopyCode",
-      "cmd-g": "search::SelectNextMatch",
-      "cmd-shift-g": "search::SelectPrevMatch",
-      "cmd-shift-m": "assistant::ToggleModelSelector",
-      "cmd-k h": "assistant::DeployHistory",
-      "cmd-k l": "assistant::DeployPromptLibrary",
-      "cmd-n": "assistant::NewContext"
-    }
-  },
-  {
     "context": "ContextEditor > Editor",
     "use_key_equivalents": true,
     "bindings": {
-      "cmd-enter": "assistant::Assist",
-      "cmd-shift-enter": "assistant::Edit",
       "cmd-s": "workspace::Save",
-      "cmd->": "assistant::QuoteSelection",
-      "cmd-<": "assistant::InsertIntoEditor",
-      "shift-enter": "assistant::Split",
-      "ctrl-r": "assistant::CycleMessageRole",
-      "enter": "assistant::ConfirmCommand",
       "alt-enter": "editor::Newline"
-    }
-  },
-  {
-    "context": "AssistantPanel2",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-n": "assistant2::NewThread",
-      "cmd-shift-h": "assistant2::OpenHistory",
-      "cmd-shift-m": "assistant2::ToggleModelSelector",
-      "cmd-shift-a": "assistant2::ToggleContextPicker"
-    }
-  },
-  {
-    "context": "MessageEditor > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "enter": "assistant2::Chat"
-    }
-  },
-  {
-    "context": "PromptLibrary",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-n": "prompt_library::NewPrompt",
-      "cmd-shift-s": "prompt_library::ToggleDefaultPrompt",
-      "cmd-w": "workspace::CloseWindow"
     }
   },
   {
@@ -477,7 +429,6 @@
       "cmd-shift-m": "diagnostics::Deploy",
       "cmd-shift-e": "pane::RevealInProjectPanel",
       "cmd-shift-b": "outline_panel::ToggleFocus",
-      "cmd-?": "assistant::ToggleFocus",
       "cmd-alt-s": "workspace::SaveAll",
       "cmd-k m": "language_selector::Toggle",
       "escape": "workspace::Unfollow",
@@ -596,8 +547,7 @@
       "shift-enter": "editor::ExpandExcerpts",
       "cmd-k enter": "editor::OpenExcerptsSplit",
       "cmd-f8": "editor::GoToHunk",
-      "cmd-shift-f8": "editor::GoToPrevHunk",
-      "ctrl-enter": "assistant::InlineAssist"
+      "cmd-shift-f8": "editor::GoToPrevHunk"
     }
   },
   {
@@ -606,15 +556,6 @@
     "bindings": {
       "cmd-shift-y": "editor::ApplyDiffHunk",
       "cmd-shift-a": "editor::ApplyAllDiffHunks"
-    }
-  },
-  {
-    "context": "PromptEditor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-shift-a": "assistant2::ToggleContextPicker",
-      "ctrl-[": "assistant::CyclePreviousInlineAssist",
-      "ctrl-]": "assistant::CycleNextInlineAssist"
     }
   },
   {
@@ -764,7 +705,6 @@
       "cmd-a": "editor::SelectAll",
       "cmd-k": "terminal::Clear",
       "cmd-n": "workspace::NewTerminal",
-      "ctrl-enter": "assistant::InlineAssist",
       // Some nice conveniences
       "cmd-backspace": ["terminal::SendText", "\u0015"],
       "cmd-right": ["terminal::SendText", "\u0005"],
