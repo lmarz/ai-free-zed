@@ -4,12 +4,10 @@ mod cents;
 pub mod db;
 pub mod env;
 pub mod executor;
-pub mod llm;
 pub mod migrations;
 mod rate_limiter;
 pub mod rpc;
 pub mod seed;
-pub mod stripe_billing;
 pub mod user_backfiller;
 
 #[cfg(test)]
@@ -24,13 +22,10 @@ use axum::{
 pub use cents::*;
 use db::{ChannelId, Database};
 use executor::Executor;
-use llm::db::LlmDatabase;
 pub use rate_limiter::*;
 use serde::Deserialize;
 use std::{path::PathBuf, sync::Arc};
 use util::ResultExt;
-
-use crate::stripe_billing::StripeBilling;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -38,7 +33,6 @@ pub enum Error {
     Http(StatusCode, String, HeaderMap),
     Database(sea_orm::error::DbErr),
     Internal(anyhow::Error),
-    Stripe(stripe::StripeError),
 }
 
 impl From<anyhow::Error> for Error {
@@ -50,12 +44,6 @@ impl From<anyhow::Error> for Error {
 impl From<sea_orm::error::DbErr> for Error {
     fn from(error: sea_orm::error::DbErr) -> Self {
         Self::Database(error)
-    }
-}
-
-impl From<stripe::StripeError> for Error {
-    fn from(error: stripe::StripeError) -> Self {
-        Self::Stripe(error)
     }
 }
 
@@ -106,14 +94,6 @@ impl IntoResponse for Error {
                 );
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", &error)).into_response()
             }
-            Error::Stripe(error) => {
-                log::error!(
-                    "HTTP error {}: {:?}",
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    &error
-                );
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", &error)).into_response()
-            }
         }
     }
 }
@@ -124,7 +104,6 @@ impl std::fmt::Debug for Error {
             Error::Http(code, message, _headers) => (code, message).fmt(f),
             Error::Database(error) => error.fmt(f),
             Error::Internal(error) => error.fmt(f),
-            Error::Stripe(error) => error.fmt(f),
         }
     }
 }
@@ -135,7 +114,6 @@ impl std::fmt::Display for Error {
             Error::Http(code, message, _) => write!(f, "{code}: {message}"),
             Error::Database(error) => error.fmt(f),
             Error::Internal(error) => error.fmt(f),
-            Error::Stripe(error) => error.fmt(f),
         }
     }
 }
@@ -273,11 +251,8 @@ impl ServiceMode {
 
 pub struct AppState {
     pub db: Arc<Database>,
-    pub llm_db: Option<Arc<LlmDatabase>>,
     pub livekit_client: Option<Arc<dyn livekit_server::api::Client>>,
     pub blob_store_client: Option<aws_sdk_s3::Client>,
-    pub stripe_client: Option<Arc<stripe::Client>>,
-    pub stripe_billing: Option<Arc<StripeBilling>>,
     pub rate_limiter: Arc<RateLimiter>,
     pub executor: Executor,
     pub kinesis_client: Option<::aws_sdk_kinesis::Client>,
@@ -290,20 +265,6 @@ impl AppState {
         db_options.max_connections(config.database_max_connections);
         let mut db = Database::new(db_options, Executor::Production).await?;
         db.initialize_notification_kinds().await?;
-
-        let llm_db = if let Some((llm_database_url, llm_database_max_connections)) = config
-            .llm_database_url
-            .clone()
-            .zip(config.llm_database_max_connections)
-        {
-            let mut llm_db_options = db::ConnectOptions::new(llm_database_url);
-            llm_db_options.max_connections(llm_database_max_connections);
-            let mut llm_db = LlmDatabase::new(llm_db_options, executor.clone()).await?;
-            llm_db.initialize().await?;
-            Some(Arc::new(llm_db))
-        } else {
-            None
-        };
 
         let livekit_client = if let Some(((server, key), secret)) = config
             .livekit_server
@@ -321,16 +282,10 @@ impl AppState {
         };
 
         let db = Arc::new(db);
-        let stripe_client = build_stripe_client(&config).map(Arc::new).log_err();
         let this = Self {
             db: db.clone(),
-            llm_db,
             livekit_client,
             blob_store_client: build_blob_store_client(&config).await.log_err(),
-            stripe_billing: stripe_client
-                .clone()
-                .map(|stripe_client| Arc::new(StripeBilling::new(stripe_client))),
-            stripe_client,
             rate_limiter: Arc::new(RateLimiter::new(db)),
             executor,
             kinesis_client: if config.kinesis_access_key.is_some() {
@@ -342,14 +297,6 @@ impl AppState {
         };
         Ok(Arc::new(this))
     }
-}
-
-fn build_stripe_client(config: &Config) -> anyhow::Result<stripe::Client> {
-    let api_key = config
-        .stripe_api_key
-        .as_ref()
-        .ok_or_else(|| anyhow!("missing stripe_api_key"))?;
-    Ok(stripe::Client::new(api_key))
 }
 
 async fn build_blob_store_client(config: &Config) -> anyhow::Result<aws_sdk_s3::Client> {
