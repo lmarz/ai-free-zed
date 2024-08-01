@@ -145,8 +145,6 @@
       "cmd-alt-f": ["buffer_search::Deploy", { "replace_enabled": true }],
       "cmd-alt-l": ["buffer_search::Deploy", { "selection_search_enabled": true }],
       "cmd-e": ["buffer_search::Deploy", { "focus": false }],
-      "cmd->": "assistant::QuoteSelection",
-      "cmd-<": "assistant::InsertIntoEditor",
       "cmd-alt-e": "editor::SelectEnclosingSymbol"
     }
   },
@@ -186,36 +184,10 @@
     }
   },
   {
-    "context": "AssistantPanel",
-    "bindings": {
-      "cmd-k c": "assistant::CopyCode",
-      "cmd-g": "search::SelectNextMatch",
-      "cmd-shift-g": "search::SelectPrevMatch",
-      "alt-m": "assistant::ToggleModelSelector",
-      "cmd-k h": "assistant::DeployHistory",
-      "cmd-k l": "assistant::DeployPromptLibrary",
-      "cmd-n": "assistant::NewContext"
-    }
-  },
-  {
     "context": "ContextEditor > Editor",
     "bindings": {
-      "cmd-enter": "assistant::Assist",
       "cmd-s": "workspace::Save",
-      "cmd->": "assistant::QuoteSelection",
-      "cmd-<": "assistant::InsertIntoEditor",
-      "shift-enter": "assistant::Split",
-      "ctrl-r": "assistant::CycleMessageRole",
-      "enter": "assistant::ConfirmCommand",
       "alt-enter": "editor::Newline"
-    }
-  },
-  {
-    "context": "PromptLibrary",
-    "bindings": {
-      "cmd-n": "prompt_library::NewPrompt",
-      "cmd-shift-s": "prompt_library::ToggleDefaultPrompt",
-      "cmd-w": "workspace::CloseWindow"
     }
   },
   {
@@ -428,7 +400,6 @@
       "cmd-shift-m": "diagnostics::Deploy",
       "cmd-shift-e": "project_panel::ToggleFocus",
       "cmd-shift-b": "outline_panel::ToggleFocus",
-      "cmd-?": "assistant::ToggleFocus",
       "cmd-alt-s": "workspace::SaveAll",
       "cmd-k m": "language_selector::Toggle",
       "escape": "workspace::Unfollow",
@@ -528,8 +499,7 @@
       "shift-enter": "editor::ExpandExcerpts",
       "cmd-k enter": "editor::OpenExcerptsSplit",
       "cmd-f8": "editor::GoToHunk",
-      "cmd-shift-f8": "editor::GoToPrevHunk",
-      "ctrl-enter": "assistant::InlineAssist"
+      "cmd-shift-f8": "editor::GoToPrevHunk"
     }
   },
   {
@@ -647,7 +617,6 @@
       "cmd-v": "terminal::Paste",
       "cmd-a": "editor::SelectAll",
       "cmd-k": "terminal::Clear",
-      "ctrl-enter": "assistant::InlineAssist",
       // Some nice conveniences
       "cmd-backspace": ["terminal::SendText", "\u0015"],
       "cmd-right": ["terminal::SendText", "\u0005"],
