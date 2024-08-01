@@ -3,7 +3,6 @@ pub mod auth;
 pub mod db;
 pub mod env;
 pub mod executor;
-pub mod llm;
 pub mod migrations;
 mod rate_limiter;
 pub mod rpc;

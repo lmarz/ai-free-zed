@@ -19,11 +19,6 @@
   // 3. "SublimeText"
   // 4. "Atom"
   "base_keymap": "VSCode",
-  // Features that can be globally enabled or disabled
-  "features": {
-    // Which inline completion provider to use.
-    "inline_completion_provider": "copilot"
-  },
   // The name of a font to use for rendering text in the editor
   "buffer_font_family": "Zed Plex Mono",
   // Set the buffer text's font fallbacks, this will be merged with
@@ -379,27 +374,6 @@
     // Default width of the notification panel.
     "default_width": 380
   },
-  "assistant": {
-    // Version of this setting.
-    "version": "2",
-    // Whether the assistant is enabled.
-    "enabled": true,
-    // Whether to show the assistant panel button in the status bar.
-    "button": true,
-    // Where to dock the assistant panel. Can be 'left', 'right' or 'bottom'.
-    "dock": "right",
-    // Default width when the assistant is docked to the left or right.
-    "default_width": 640,
-    // Default height when the assistant is docked to the bottom.
-    "default_height": 320,
-    // The default model to use when creating new contexts.
-    "default_model": {
-      // The provider to use.
-      "provider": "openai",
-      // The model to use.
-      "model": "gpt-4o"
-    }
-  },
   // Whether the screen sharing icon is shown in the os status bar.
   "show_call_status_icon": true,
   // Whether to use language servers to provide code intelligence.
@@ -500,13 +474,6 @@
   "hard_tabs": false,
   // How many columns a tab should occupy.
   "tab_size": 4,
-  // Control what info is collected by Zed.
-  "telemetry": {
-    // Send debug info like crash reports.
-    "diagnostics": true,
-    // Send anonymized usage data like what languages you're using Zed with.
-    "metrics": true
-  },
   // Automatically update Zed. This setting may be ignored on Linux if
   // installed through a package manager.
   "auto_update": true,

@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use client::{parse_zed_link, telemetry::Telemetry};
+use client::parse_zed_link;
 use collections::HashMap;
 use command_palette_hooks::{
     CommandInterceptResult, CommandPaletteFilter, CommandPaletteInterceptor,
@@ -62,18 +62,11 @@ impl CommandPalette {
             let Some(previous_focus_handle) = cx.focused() else {
                 return;
             };
-            let telemetry = workspace.client().telemetry().clone();
-            workspace.toggle_modal(cx, move |cx| {
-                CommandPalette::new(previous_focus_handle, telemetry, cx)
-            });
+            workspace.toggle_modal(cx, move |cx| CommandPalette::new(previous_focus_handle, cx));
         });
     }
 
-    fn new(
-        previous_focus_handle: FocusHandle,
-        telemetry: Arc<Telemetry>,
-        cx: &mut ViewContext<Self>,
-    ) -> Self {
+    fn new(previous_focus_handle: FocusHandle, cx: &mut ViewContext<Self>) -> Self {
         let filter = CommandPaletteFilter::try_global(cx);
 
         let commands = cx
@@ -91,12 +84,8 @@ impl CommandPalette {
             })
             .collect();
 
-        let delegate = CommandPaletteDelegate::new(
-            cx.view().downgrade(),
-            commands,
-            telemetry,
-            previous_focus_handle,
-        );
+        let delegate =
+            CommandPaletteDelegate::new(cx.view().downgrade(), commands, previous_focus_handle);
 
         let picker = cx.new_view(|cx| Picker::uniform_list(delegate, cx));
         Self { picker }
@@ -123,7 +112,6 @@ pub struct CommandPaletteDelegate {
     commands: Vec<Command>,
     matches: Vec<StringMatch>,
     selected_ix: usize,
-    telemetry: Arc<Telemetry>,
     previous_focus_handle: FocusHandle,
     updating_matches: Option<(
         Task<()>,
@@ -157,7 +145,6 @@ impl CommandPaletteDelegate {
     fn new(
         command_palette: WeakView<CommandPalette>,
         commands: Vec<Command>,
-        telemetry: Arc<Telemetry>,
         previous_focus_handle: FocusHandle,
     ) -> Self {
         Self {
@@ -166,7 +153,6 @@ impl CommandPaletteDelegate {
             matches: vec![],
             commands,
             selected_ix: 0,
-            telemetry,
             previous_focus_handle,
             updating_matches: None,
         }
@@ -361,9 +347,6 @@ impl PickerDelegate for CommandPaletteDelegate {
         }
         let action_ix = self.matches[self.selected_ix].candidate_id;
         let command = self.commands.swap_remove(action_ix);
-
-        self.telemetry
-            .report_action_event("command palette", command.name.clone());
 
         self.matches.clear();
         self.commands.clear();

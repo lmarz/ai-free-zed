@@ -199,10 +199,6 @@ impl UserStore {
                                             .map_or(false, |v| v != "" && v != "0");
                                         let staff = info.staff && !disable_staff;
                                         cx.update_flags(staff, info.flags);
-                                        client.telemetry.set_authenticated_user_info(
-                                            Some(info.metrics_id.clone()),
-                                            staff,
-                                        )
                                     }
                                 })?;
 

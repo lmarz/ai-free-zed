@@ -1,6 +1,5 @@
 use crate::headless_project::HeadlessProject;
 use client::{Client, UserStore};
-use clock::FakeSystemClock;
 use fs::{FakeFs, Fs as _};
 use gpui::{Context, Model, TestAppContext};
 use http_client::FakeHttpClient;
@@ -156,13 +155,7 @@ fn build_project(ssh: Arc<SshSession>, cx: &mut TestAppContext) -> Model<Project
         cx.set_global(settings_store);
     });
 
-    let client = cx.update(|cx| {
-        Client::new(
-            Arc::new(FakeSystemClock::default()),
-            FakeHttpClient::with_404_response(),
-            cx,
-        )
-    });
+    let client = cx.update(|cx| Client::new(FakeHttpClient::with_404_response(), cx));
 
     let node = FakeNodeRuntime::new();
     let user_store = cx.new_model(|cx| UserStore::new(client.clone(), cx));
