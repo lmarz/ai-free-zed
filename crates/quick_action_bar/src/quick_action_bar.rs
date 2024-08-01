@@ -1,5 +1,3 @@
-use assistant::assistant_settings::AssistantSettings;
-use assistant::AssistantPanel;
 use editor::actions::{
     AddSelectionAbove, AddSelectionBelow, DuplicateLineDown, GoToDiagnostic, GoToHunk,
     GoToPrevDiagnostic, GoToPrevHunk, MoveLineDown, MoveLineUp, SelectAll, SelectLargerSyntaxNode,
@@ -20,7 +18,6 @@ use ui::{
 use workspace::{
     item::ItemHandle, ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, Workspace,
 };
-use zed_actions::InlineAssist;
 
 mod repl_menu;
 mod toggle_markdown_preview;
@@ -127,24 +124,6 @@ impl Render for QuickActionBar {
                 },
             )
         });
-
-        let assistant_button = QuickActionBarButton::new(
-            "toggle inline assistant",
-            IconName::ZedAssistant,
-            false,
-            Box::new(InlineAssist::default()),
-            "Inline Assist",
-            {
-                let workspace = self.workspace.clone();
-                move |_, cx| {
-                    if let Some(workspace) = workspace.upgrade() {
-                        workspace.update(cx, |workspace, cx| {
-                            AssistantPanel::inline_assist(workspace, &InlineAssist::default(), cx);
-                        });
-                    }
-                }
-            },
-        );
 
         let editor_selections_dropdown = selection_menu_enabled.then(|| {
             let focus = editor.focus_handle(cx);
@@ -303,11 +282,6 @@ impl Render for QuickActionBar {
             .children(self.render_repl_menu(cx))
             .children(self.render_toggle_markdown_preview(self.workspace.clone(), cx))
             .children(search_button)
-            .when(
-                AssistantSettings::get_global(cx).enabled
-                    && AssistantSettings::get_global(cx).button,
-                |bar| bar.child(assistant_button),
-            )
             .children(editor_selections_dropdown)
             .child(editor_settings_dropdown)
     }
