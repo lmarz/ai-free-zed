@@ -13,7 +13,6 @@ path = "src/theme_selector.rs"
 doctest = false
 
 [dependencies]
-client.workspace = true
 feature_flags.workspace = true
 fs.workspace = true
 fuzzy.workspace = true
