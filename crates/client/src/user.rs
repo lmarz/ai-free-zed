@@ -203,10 +203,6 @@ impl UserStore {
                                             .map_or(false, |v| !v.is_empty() && v != "0");
                                         let staff = info.staff && !disable_staff;
                                         cx.update_flags(staff, info.flags);
-                                        client.telemetry.set_authenticated_user_info(
-                                            Some(info.metrics_id.clone()),
-                                            staff,
-                                        );
 
                                         this.update(cx, |this, _| {
                                             this.set_current_user_accepted_tos_at(

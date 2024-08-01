@@ -1,5 +1,4 @@
 use anyhow::Result;
-use call::ActiveCall;
 use channel::{Channel, ChannelBuffer, ChannelBufferEvent, ChannelStore};
 use client::{
     proto::{self, PeerId},
@@ -66,14 +65,6 @@ impl ChannelView {
         cx.spawn(|mut cx| async move {
             let channel_view = channel_view.await?;
             pane.update(&mut cx, |pane, cx| {
-                telemetry::event!(
-                    "Channel Notes Opened",
-                    channel_id,
-                    room_id = ActiveCall::global(cx)
-                        .read(cx)
-                        .room()
-                        .map(|r| r.read(cx).id())
-                );
                 pane.add_item(Box::new(channel_view.clone()), true, true, None, cx);
             })?;
             anyhow::Ok(channel_view)
