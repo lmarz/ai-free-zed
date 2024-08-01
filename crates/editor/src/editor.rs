@@ -91,7 +91,7 @@ use inline_completion::{InlayProposal, InlineCompletionProvider, InlineCompletio
 pub use items::MAX_TAB_TITLE_LEN;
 use itertools::Itertools;
 use language::{
-    language_settings::{self, all_language_settings, language_settings, InlayHintSettings},
+    language_settings::{self, language_settings, InlayHintSettings},
     markdown, point_from_lsp, AutoindentMode, BracketPair, Buffer, Capability, CharKind, CodeLabel,
     CursorShape, Diagnostic, Documentation, IndentKind, IndentSize, Language, OffsetRangeExt,
     Point, Selection, SelectionGoal, TransactionId,
@@ -146,7 +146,7 @@ use std::{
     mem,
     num::NonZeroU32,
     ops::{ControlFlow, Deref, DerefMut, Not as _, Range, RangeInclusive},
-    path::{Path, PathBuf},
+    path::PathBuf,
     rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
@@ -2171,7 +2171,6 @@ impl Editor {
             }
         }
 
-        this.report_editor_event("open", None, cx);
         this
     }
 
@@ -12593,15 +12592,7 @@ impl Editor {
                     }
                 }
 
-                let Some(project) = &self.project else { return };
-                let (telemetry, is_via_ssh) = {
-                    let project = project.read(cx);
-                    let telemetry = project.client().telemetry().clone();
-                    let is_via_ssh = project.is_via_ssh();
-                    (telemetry, is_via_ssh)
-                };
                 refresh_linked_ranges(self, cx);
-                telemetry.log_edit_event("editor", is_via_ssh);
             }
             multi_buffer::Event::ExcerptsAdded {
                 buffer,
@@ -12938,56 +12929,6 @@ impl Editor {
                     ..snapshot.clip_offset_utf16(selection.end, Bias::Right)
             })
             .collect()
-    }
-
-    fn report_editor_event(
-        &self,
-        operation: &'static str,
-        file_extension: Option<String>,
-        cx: &AppContext,
-    ) {
-        if cfg!(any(test, feature = "test-support")) {
-            return;
-        }
-
-        let Some(project) = &self.project else { return };
-
-        // If None, we are in a file without an extension
-        let file = self
-            .buffer
-            .read(cx)
-            .as_singleton()
-            .and_then(|b| b.read(cx).file());
-        let file_extension = file_extension.or(file
-            .as_ref()
-            .and_then(|file| Path::new(file.file_name(cx)).extension())
-            .and_then(|e| e.to_str())
-            .map(|a| a.to_string()));
-
-        let vim_mode = cx
-            .global::<SettingsStore>()
-            .raw_user_settings()
-            .get("vim_mode")
-            == Some(&serde_json::Value::Bool(true));
-
-        let copilot_enabled = all_language_settings(file, cx).inline_completions.provider
-            == language::language_settings::InlineCompletionProvider::Copilot;
-        let copilot_enabled_for_language = self
-            .buffer
-            .read(cx)
-            .settings_at(0, cx)
-            .show_inline_completions;
-
-        let project = project.read(cx);
-        let telemetry = project.client().telemetry().clone();
-        telemetry.report_editor_event(
-            file_extension,
-            vim_mode,
-            operation,
-            copilot_enabled,
-            copilot_enabled_for_language,
-            project.is_via_ssh(),
-        )
     }
 
     /// Copy the highlighted chunks to the clipboard as JSON. The format is an array of lines,
