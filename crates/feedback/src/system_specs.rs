@@ -1,4 +1,3 @@
-use client::telemetry;
 use gpui::Task;
 use human_bytes::human_bytes;
 use release_channel::{AppCommitSha, AppVersion, ReleaseChannel};
@@ -23,7 +22,7 @@ impl SystemSpecs {
     pub fn new(cx: &WindowContext) -> Task<Self> {
         let app_version = AppVersion::global(cx).to_string();
         let release_channel = ReleaseChannel::global(cx);
-        let os_name = telemetry::os_name();
+        let os_name = String::from("");
         let system = System::new_with_specifics(
             RefreshKind::new().with_memory(MemoryRefreshKind::everything()),
         );
@@ -46,7 +45,7 @@ impl SystemSpecs {
         };
 
         cx.background_executor().spawn(async move {
-            let os_version = telemetry::os_version();
+            let os_version = String::from("");
             SystemSpecs {
                 app_version,
                 release_channel: release_channel.display_name(),
