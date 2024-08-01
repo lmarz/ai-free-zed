@@ -30,9 +30,7 @@
       "ctrl-0": "zed::ResetBufferFontSize",
       "ctrl-,": "zed::OpenSettings",
       "ctrl-q": "zed::Quit",
-      "f11": "zed::ToggleFullScreen",
-      "ctrl-alt-z": "zeta::RateCompletions",
-      "ctrl-shift-i": "inline_completion::ToggleMenu"
+      "f11": "zed::ToggleFullScreen"
     }
   },
   {
@@ -138,8 +136,6 @@
       "ctrl-f": "buffer_search::Deploy",
       "ctrl-h": ["buffer_search::Deploy", { "replace_enabled": true }],
       // "cmd-e": ["buffer_search::Deploy", { "focus": false }],
-      "ctrl->": "assistant::QuoteSelection",
-      "ctrl-<": "assistant::InsertIntoEditor",
       "ctrl-alt-e": "editor::SelectEnclosingSymbol",
       "alt-enter": "editor::OpenSelectionsInMultibuffer"
     }
@@ -171,28 +167,6 @@
     "bindings": {
       "copy": "markdown::Copy",
       "ctrl-c": "markdown::Copy"
-    }
-  },
-  {
-    "context": "AssistantPanel",
-    "bindings": {
-      "ctrl-k c": "assistant::CopyCode",
-      "ctrl-shift-e": "project_panel::ToggleFocus",
-      "ctrl-g": "search::SelectNextMatch",
-      "ctrl-shift-g": "search::SelectPrevMatch",
-      "ctrl-alt-/": "assistant::ToggleModelSelector",
-      "ctrl-k h": "assistant::DeployHistory",
-      "ctrl-k l": "assistant::DeployPromptLibrary",
-      "new": "assistant::NewContext",
-      "ctrl-n": "assistant::NewContext"
-    }
-  },
-  {
-    "context": "PromptLibrary",
-    "bindings": {
-      "new": "prompt_library::NewPrompt",
-      "ctrl-n": "prompt_library::NewPrompt",
-      "ctrl-shift-s": "prompt_library::ToggleDefaultPrompt"
     }
   },
   {
@@ -427,7 +401,6 @@
       "ctrl-shift-e": "project_panel::ToggleFocus",
       "ctrl-shift-b": "outline_panel::ToggleFocus",
       "ctrl-shift-g": "git_panel::ToggleFocus",
-      "ctrl-?": "assistant::ToggleFocus",
       "alt-save": "workspace::SaveAll",
       "ctrl-alt-s": "workspace::SaveAll",
       "ctrl-k m": "language_selector::Toggle",
@@ -548,8 +521,7 @@
       "ctrl-alt-enter": "editor::OpenExcerptsSplit",
       "ctrl-shift-e": "pane::RevealInProjectPanel",
       "ctrl-f8": "editor::GoToHunk",
-      "ctrl-shift-f8": "editor::GoToPrevHunk",
-      "ctrl-enter": "assistant::InlineAssist"
+      "ctrl-shift-f8": "editor::GoToPrevHunk"
     }
   },
   {
@@ -569,61 +541,9 @@
   {
     "context": "ContextEditor > Editor",
     "bindings": {
-      "ctrl-enter": "assistant::Assist",
-      "ctrl-shift-enter": "assistant::Edit",
       "ctrl-s": "workspace::Save",
       "save": "workspace::Save",
-      "ctrl->": "assistant::QuoteSelection",
-      "ctrl-<": "assistant::InsertIntoEditor",
-      "shift-enter": "assistant::Split",
-      "ctrl-r": "assistant::CycleMessageRole",
-      "enter": "assistant::ConfirmCommand",
       "alt-enter": "editor::Newline"
-    }
-  },
-  {
-    "context": "AssistantPanel2",
-    "bindings": {
-      "ctrl-n": "assistant2::NewThread",
-      "new": "assistant2::NewThread",
-      "ctrl-shift-h": "assistant2::OpenHistory",
-      "ctrl-alt-/": "assistant2::ToggleModelSelector",
-      "ctrl-shift-a": "assistant2::ToggleContextPicker",
-      "ctrl-e": "assistant2::ChatMode",
-      "ctrl-alt-e": "assistant2::RemoveAllContext"
-    }
-  },
-  {
-    "context": "MessageEditor > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "enter": "assistant2::Chat"
-    }
-  },
-  {
-    "context": "ContextStrip",
-    "use_key_equivalents": true,
-    "bindings": {
-      "up": "assistant2::FocusUp",
-      "right": "assistant2::FocusRight",
-      "left": "assistant2::FocusLeft",
-      "down": "assistant2::FocusDown",
-      "backspace": "assistant2::RemoveFocusedContext",
-      "enter": "assistant2::AcceptSuggestedContext"
-    }
-  },
-  {
-    "context": "ThreadHistory",
-    "bindings": {
-      "backspace": "assistant2::RemoveSelectedThread"
-    }
-  },
-  {
-    "context": "PromptEditor",
-    "bindings": {
-      "ctrl-[": "assistant::CyclePreviousInlineAssist",
-      "ctrl-]": "assistant::CycleNextInlineAssist",
-      "ctrl-alt-e": "assistant2::RemoveAllContext"
     }
   },
   {
@@ -797,7 +717,6 @@
       "paste": "terminal::Paste",
       "shift-insert": "terminal::Paste",
       "ctrl-shift-v": "terminal::Paste",
-      "ctrl-enter": "assistant::InlineAssist",
       // Overrides for conflicting keybindings
       "ctrl-w": ["terminal::SendKeystroke", "ctrl-w"],
       "ctrl-shift-a": "editor::SelectAll",

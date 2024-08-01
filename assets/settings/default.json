@@ -22,11 +22,6 @@
   // 5. "SublimeText"
   // 6. "TextMate"
   "base_keymap": "VSCode",
-  // Features that can be globally enabled or disabled
-  "features": {
-    // Which inline completion provider to use.
-    "inline_completion_provider": "copilot"
-  },
   // The name of a font to use for rendering text in the editor
   "buffer_font_family": "Zed Plex Mono",
   // Set the buffer text's font fallbacks, this will be merged with
@@ -529,27 +524,6 @@
     // Default width of the notification panel.
     "default_width": 380
   },
-  "assistant": {
-    // Version of this setting.
-    "version": "2",
-    // Whether the assistant is enabled.
-    "enabled": true,
-    // Whether to show the assistant panel button in the status bar.
-    "button": true,
-    // Where to dock the assistant panel. Can be 'left', 'right' or 'bottom'.
-    "dock": "right",
-    // Default width when the assistant is docked to the left or right.
-    "default_width": 640,
-    // Default height when the assistant is docked to the bottom.
-    "default_height": 320,
-    // The default model to use when creating new chats.
-    "default_model": {
-      // The provider to use.
-      "provider": "zed.dev",
-      // The model to use.
-      "model": "claude-3-5-sonnet"
-    }
-  },
   // The settings for slash commands.
   "slash_commands": {
     // Settings for the `/docs` slash command.
@@ -711,13 +685,6 @@
   "hard_tabs": false,
   // How many columns a tab should occupy.
   "tab_size": 4,
-  // Control what info is collected by Zed.
-  "telemetry": {
-    // Send debug info like crash reports.
-    "diagnostics": true,
-    // Send anonymized usage data like what languages you're using Zed with.
-    "metrics": true
-  },
   // Automatically update Zed. This setting may be ignored on Linux if
   // installed through a package manager.
   "auto_update": true,
@@ -1156,29 +1123,6 @@
     },
     "Zig": {
       "language_servers": ["zls", "..."]
-    }
-  },
-  // Different settings for specific language models.
-  "language_models": {
-    "anthropic": {
-      "version": "1",
-      "api_url": "https://api.anthropic.com"
-    },
-    "google": {
-      "api_url": "https://generativelanguage.googleapis.com"
-    },
-    "ollama": {
-      "api_url": "http://localhost:11434"
-    },
-    "openai": {
-      "version": "1",
-      "api_url": "https://api.openai.com/v1"
-    },
-    "lmstudio": {
-      "api_url": "http://localhost:1234/api/v0"
-    },
-    "deepseek": {
-      "api_url": "https://api.deepseek.com"
     }
   },
   // Zed's Prettier integration settings.

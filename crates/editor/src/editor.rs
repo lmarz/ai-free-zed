@@ -69,7 +69,6 @@ pub use element::{
 use element::{LineWithInvisibles, PositionMap};
 use futures::{future, FutureExt};
 use fuzzy::StringMatchCandidate;
-use zed_predict_onboarding::ZedPredictModal;
 
 use code_context_menus::{
     AvailableCodeAction, CodeActionContents, CodeActionsItem, CodeActionsMenu, CodeContextMenu,
@@ -94,7 +93,7 @@ use inline_completion::{InlineCompletionProvider, InlineCompletionProviderHandle
 pub use items::MAX_TAB_TITLE_LEN;
 use itertools::Itertools;
 use language::{
-    language_settings::{self, all_language_settings, language_settings, InlayHintSettings},
+    language_settings::{self, language_settings, InlayHintSettings},
     markdown, point_from_lsp, AutoindentMode, BracketPair, Buffer, Capability, CharKind, CodeLabel,
     CursorShape, Diagnostic, Documentation, IndentKind, IndentSize, Language, OffsetRangeExt,
     Point, Selection, SelectionGoal, TextObject, TransactionId, TreeSitterOptions,
@@ -148,7 +147,7 @@ use std::{
     mem,
     num::NonZeroU32,
     ops::{ControlFlow, Deref, DerefMut, Not as _, Range, RangeInclusive},
-    path::{Path, PathBuf},
+    path::PathBuf,
     rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
@@ -1463,7 +1462,6 @@ impl Editor {
             }
         }
 
-        this.report_editor_event("Editor Opened", None, cx);
         this
     }
 
@@ -2572,7 +2570,7 @@ impl Editor {
             cx.notify();
             return;
         }
-        if self.dismiss_menus_and_popups(true, window, cx) {
+        if self.dismiss_menus_and_popups(window, cx) {
             return;
         }
 
@@ -2587,7 +2585,6 @@ impl Editor {
 
     pub fn dismiss_menus_and_popups(
         &mut self,
-        should_report_inline_completion_event: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
@@ -2614,7 +2611,7 @@ impl Editor {
             return true;
         }
 
-        if self.discard_inline_completion(should_report_inline_completion_event, cx) {
+        if self.discard_inline_completion(cx) {
             return true;
         }
 
@@ -3903,7 +3900,7 @@ impl Editor {
                                 menu.show_inline_completion_hint(hint);
                             }
                         } else {
-                            editor.discard_inline_completion(false, cx);
+                            editor.discard_inline_completion(cx);
                         }
 
                         *editor.context_menu.borrow_mut() =
@@ -3949,23 +3946,6 @@ impl Editor {
         self.do_completion(action.item_ix, CompletionIntent::Compose, window, cx)
     }
 
-    fn toggle_zed_predict_onboarding(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (Some(workspace), Some(project)) = (self.workspace(), self.project.as_ref()) else {
-            return;
-        };
-
-        let project = project.read(cx);
-
-        ZedPredictModal::toggle(
-            workspace,
-            project.user_store().clone(),
-            project.client().clone(),
-            project.fs().clone(),
-            window,
-            cx,
-        );
-    }
-
     fn do_completion(
         &mut self,
         item_ix: Option<usize>,
@@ -3995,7 +3975,6 @@ impl Editor {
                     )) => {
                         drop(entries);
                         drop(context_menu);
-                        self.toggle_zed_predict_onboarding(window, cx);
                         return Some(Task::ready(Ok(())));
                     }
                     _ => {}
@@ -4020,7 +3999,7 @@ impl Editor {
             }
             CompletionEntry::Match(mat) => {
                 if self.show_inline_completions_in_menu(cx) {
-                    self.discard_inline_completion(true, cx);
+                    self.discard_inline_completion(cx);
                 }
                 mat
             }
@@ -4269,7 +4248,7 @@ impl Editor {
                     }
 
                     editor.completion_tasks.clear();
-                    editor.discard_inline_completion(false, cx);
+                    editor.discard_inline_completion(cx);
                     let task_context =
                         tasks
                             .as_ref()
@@ -4714,7 +4693,7 @@ impl Editor {
                 || !self.is_focused(window)
                 || buffer.read(cx).is_empty())
         {
-            self.discard_inline_completion(false, cx);
+            self.discard_inline_completion(cx);
             return None;
         }
 
@@ -4849,8 +4828,6 @@ impl Editor {
             return;
         };
 
-        self.report_inline_completion_event(true, cx);
-
         match &active_inline_completion.completion {
             InlineCompletion::Move(position) => {
                 let position = *position;
@@ -4899,8 +4876,6 @@ impl Editor {
         if self.selections.count() != 1 {
             return;
         }
-
-        self.report_inline_completion_event(true, cx);
 
         match &active_inline_completion.completion {
             InlineCompletion::Move(position) => {
@@ -4955,50 +4930,12 @@ impl Editor {
         }
     }
 
-    fn discard_inline_completion(
-        &mut self,
-        should_report_inline_completion_event: bool,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        if should_report_inline_completion_event {
-            self.report_inline_completion_event(false, cx);
-        }
-
+    fn discard_inline_completion(&mut self, cx: &mut Context<Self>) -> bool {
         if let Some(provider) = self.inline_completion_provider() {
             provider.discard(cx);
         }
 
         self.take_active_inline_completion(cx).is_some()
-    }
-
-    fn report_inline_completion_event(&self, accepted: bool, cx: &App) {
-        let Some(provider) = self.inline_completion_provider() else {
-            return;
-        };
-
-        let Some((_, buffer, _)) = self
-            .buffer
-            .read(cx)
-            .excerpt_containing(self.selections.newest_anchor().head(), cx)
-        else {
-            return;
-        };
-
-        let extension = buffer
-            .read(cx)
-            .file()
-            .and_then(|file| Some(file.path().extension()?.to_string_lossy().to_string()));
-
-        let event_type = match accepted {
-            true => "Inline Completion Accepted",
-            false => "Inline Completion Discarded",
-        };
-        telemetry::event!(
-            event_type,
-            provider = provider.name(),
-            suggestion_accepted = accepted,
-            file_extension = extension,
-        );
     }
 
     pub fn has_active_inline_completion(&self) -> bool {
@@ -5041,7 +4978,7 @@ impl Editor {
                     !invalidation_range.contains(&offset_selection.head())
                 })
         {
-            self.discard_inline_completion(false, cx);
+            self.discard_inline_completion(cx);
             return None;
         }
 
@@ -13334,15 +13271,7 @@ impl Editor {
                     }
                 }
 
-                let Some(project) = &self.project else { return };
-                let (telemetry, is_via_ssh) = {
-                    let project = project.read(cx);
-                    let telemetry = project.client().telemetry().clone();
-                    let is_via_ssh = project.is_via_ssh();
-                    (telemetry, is_via_ssh)
-                };
                 refresh_linked_ranges(self, window, cx);
-                telemetry.log_edit_event("editor", is_via_ssh);
             }
             multi_buffer::Event::ExcerptsAdded {
                 buffer,
@@ -13738,55 +13667,6 @@ impl Editor {
                     ..snapshot.clip_offset_utf16(selection.end, Bias::Right)
             })
             .collect()
-    }
-
-    fn report_editor_event(
-        &self,
-        event_type: &'static str,
-        file_extension: Option<String>,
-        cx: &App,
-    ) {
-        if cfg!(any(test, feature = "test-support")) {
-            return;
-        }
-
-        let Some(project) = &self.project else { return };
-
-        // If None, we are in a file without an extension
-        let file = self
-            .buffer
-            .read(cx)
-            .as_singleton()
-            .and_then(|b| b.read(cx).file());
-        let file_extension = file_extension.or(file
-            .as_ref()
-            .and_then(|file| Path::new(file.file_name(cx)).extension())
-            .and_then(|e| e.to_str())
-            .map(|a| a.to_string()));
-
-        let vim_mode = cx
-            .global::<SettingsStore>()
-            .raw_user_settings()
-            .get("vim_mode")
-            == Some(&serde_json::Value::Bool(true));
-
-        let copilot_enabled = all_language_settings(file, cx).inline_completions.provider
-            == language::language_settings::InlineCompletionProvider::Copilot;
-        let copilot_enabled_for_language = self
-            .buffer
-            .read(cx)
-            .settings_at(0, cx)
-            .show_inline_completions;
-
-        let project = project.read(cx);
-        telemetry::event!(
-            event_type,
-            file_extension,
-            vim_mode,
-            copilot_enabled,
-            copilot_enabled_for_language,
-            is_via_ssh = project.is_via_ssh(),
-        );
     }
 
     /// Copy the highlighted chunks to the clipboard as JSON. The format is an array of lines,

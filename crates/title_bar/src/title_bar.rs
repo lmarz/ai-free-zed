@@ -37,7 +37,6 @@ use ui::{
 use util::ResultExt;
 use workspace::{notifications::NotifyResultExt, Workspace};
 use zed_actions::{OpenBrowser, OpenRecent, OpenRemote};
-use zed_predict_onboarding::ZedPredictBanner;
 
 #[cfg(feature = "stories")]
 pub use stories::*;
@@ -114,7 +113,6 @@ pub struct TitleBar {
     application_menu: Option<Entity<ApplicationMenu>>,
     _subscriptions: Vec<Subscription>,
     git_ui_enabled: Arc<AtomicBool>,
-    zed_predict_banner: Entity<ZedPredictBanner>,
 }
 
 impl Render for TitleBar {
@@ -198,7 +196,6 @@ impl Render for TitleBar {
                             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation()),
                     )
                     .child(self.render_collaborator_list(window, cx))
-                    .child(self.zed_predict_banner.clone())
                     .child(
                         h_flex()
                             .gap_1()
@@ -274,7 +271,6 @@ impl TitleBar {
         let project = workspace.project().clone();
         let user_store = workspace.app_state().user_store.clone();
         let client = workspace.app_state().client.clone();
-        let fs = workspace.app_state().fs.clone();
         let active_call = ActiveCall::global(cx);
 
         let platform_style = PlatformStyle::platform();
@@ -310,16 +306,6 @@ impl TitleBar {
             }
         }));
 
-        let zed_predict_banner = cx.new(|cx| {
-            ZedPredictBanner::new(
-                workspace.weak_handle(),
-                user_store.clone(),
-                client.clone(),
-                fs.clone(),
-                cx,
-            )
-        });
-
         Self {
             platform_style,
             content: div().id(id.into()),
@@ -333,7 +319,6 @@ impl TitleBar {
             client,
             _subscriptions: subscriptions,
             git_ui_enabled: is_git_ui_enabled,
-            zed_predict_banner,
         }
     }
 

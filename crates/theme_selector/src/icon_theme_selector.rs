@@ -159,12 +159,6 @@ impl PickerDelegate for IconThemeSelectorDelegate {
         let theme_settings = ThemeSettings::get_global(cx);
         let theme_name = theme_settings.active_icon_theme.name.clone();
 
-        telemetry::event!(
-            "Settings Changed",
-            setting = "icon_theme",
-            value = theme_name
-        );
-
         update_settings_file::<ThemeSettings>(self.fs.clone(), cx, move |settings, _| {
             settings.icon_theme = Some(theme_name.to_string());
         });

@@ -63,14 +63,7 @@ impl RenderOnce for FeatureUpsell {
                             )
                             .on_click({
                                 let docs_url = docs_url.clone();
-                                move |_event, _window, cx| {
-                                    telemetry::event!(
-                                        "Documentation Viewed",
-                                        source = "Feature Upsell",
-                                        url = docs_url,
-                                    );
-                                    cx.open_url(&docs_url)
-                                }
+                                move |_event, _window, cx| cx.open_url(&docs_url)
                             }),
                     )
                 },

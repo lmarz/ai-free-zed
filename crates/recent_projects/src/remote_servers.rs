@@ -210,11 +210,6 @@ impl ProjectPicker {
                             );
 
                             workspace
-                                .client()
-                                .telemetry()
-                                .report_app_event("create ssh project".to_string());
-
-                            workspace
                         })
                     })
                     .log_err();
@@ -420,12 +415,6 @@ impl RemoteServerProjects {
             match connection.await {
                 Some(Some(client)) => this
                     .update(&mut cx, |this, cx| {
-                        let _ = this.workspace.update(cx, |workspace, _| {
-                            workspace
-                                .client()
-                                .telemetry()
-                                .report_app_event("create ssh server".to_string())
-                        });
                         this.retained_connections.push(client);
                         this.add_ssh_server(connection_options, cx);
                         this.mode = Mode::default_mode(cx);
