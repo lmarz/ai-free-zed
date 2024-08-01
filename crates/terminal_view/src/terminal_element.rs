@@ -5,7 +5,7 @@ use gpui::{
     HighlightStyle, Hitbox, Hsla, InputHandler, InteractiveElement, Interactivity, IntoElement,
     LayoutId, Model, ModelContext, ModifiersChangedEvent, MouseButton, MouseMoveEvent, Pixels,
     Point, ShapedLine, StatefulInteractiveElement, StrikethroughStyle, Styled, TextRun, TextStyle,
-    UnderlineStyle, View, WeakView, WhiteSpace, WindowContext, WindowTextSystem,
+    UnderlineStyle, View, WhiteSpace, WindowContext, WindowTextSystem,
 };
 use itertools::Itertools;
 use language::CursorShape;
@@ -25,7 +25,6 @@ use terminal::{
 };
 use theme::{ActiveTheme, Theme, ThemeSettings};
 use ui::{ParentElement, Tooltip};
-use workspace::Workspace;
 
 use std::mem;
 use std::{fmt::Debug, ops::RangeInclusive, rc::Rc};
@@ -150,7 +149,6 @@ impl LayoutRect {
 pub struct TerminalElement {
     terminal: Model<Terminal>,
     terminal_view: View<TerminalView>,
-    workspace: WeakView<Workspace>,
     focus: FocusHandle,
     focused: bool,
     cursor_visible: bool,
@@ -172,7 +170,6 @@ impl TerminalElement {
     pub fn new(
         terminal: Model<Terminal>,
         terminal_view: View<TerminalView>,
-        workspace: WeakView<Workspace>,
         focus: FocusHandle,
         focused: bool,
         cursor_visible: bool,
@@ -182,7 +179,6 @@ impl TerminalElement {
         TerminalElement {
             terminal,
             terminal_view,
-            workspace,
             focused,
             focus: focus.clone(),
             cursor_visible,
@@ -884,7 +880,6 @@ impl Element for TerminalElement {
                     .cursor
                     .as_ref()
                     .map(|cursor| cursor.bounding_rect(origin)),
-                workspace: self.workspace.clone(),
             };
 
             self.register_mouse_listeners(origin, layout.mode, &layout.hitbox, cx);
@@ -970,7 +965,6 @@ impl IntoElement for TerminalElement {
 
 struct TerminalInputHandler {
     terminal: Model<Terminal>,
-    workspace: WeakView<Workspace>,
     cursor_bounds: Option<Bounds<Pixels>>,
 }
 
@@ -1010,13 +1004,6 @@ impl InputHandler for TerminalInputHandler {
         self.terminal.update(cx, |terminal, _| {
             terminal.input(text.into());
         });
-
-        self.workspace
-            .update(cx, |this, cx| {
-                let telemetry = this.project().read(cx).client().telemetry().clone();
-                telemetry.log_edit_event("terminal");
-            })
-            .ok();
     }
 
     fn replace_and_mark_text_in_range(

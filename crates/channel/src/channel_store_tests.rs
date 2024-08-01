@@ -2,7 +2,6 @@ use crate::channel_chat::ChannelChatEvent;
 
 use super::*;
 use client::{test::FakeServer, Client, UserStore};
-use clock::FakeSystemClock;
 use gpui::{AppContext, Context, Model, SemanticVersion, TestAppContext};
 use http_client::FakeHttpClient;
 use rpc::proto::{self};
@@ -343,9 +342,8 @@ fn init_test(cx: &mut AppContext) -> Model<ChannelStore> {
     release_channel::init(SemanticVersion::default(), cx);
     client::init_settings(cx);
 
-    let clock = Arc::new(FakeSystemClock::default());
     let http = FakeHttpClient::with_404_response();
-    let client = Client::new(clock, http.clone(), cx);
+    let client = Client::new(http.clone(), cx);
     let user_store = cx.new_model(|cx| UserStore::new(client.clone(), cx));
 
     client::init(&client, cx);
