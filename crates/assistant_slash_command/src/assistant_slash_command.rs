@@ -8,7 +8,6 @@ use futures::stream::{self, BoxStream};
 use futures::StreamExt;
 use gpui::{AnyElement, AppContext, ElementId, SharedString, Task, WeakView, WindowContext};
 use language::{BufferSnapshot, CodeLabel, LspAdapterDelegate, OffsetRangeExt};
-pub use language_model::Role;
 use serde::{Deserialize, Serialize};
 use std::{
     ops::Range,
@@ -127,7 +126,6 @@ impl<'a> From<&'a str> for SlashCommandContent {
 #[derive(Debug, PartialEq)]
 pub enum SlashCommandEvent {
     StartMessage {
-        role: Role,
         merge_same_roles: bool,
     },
     StartSection {
