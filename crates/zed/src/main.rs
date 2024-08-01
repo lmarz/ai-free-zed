@@ -7,7 +7,6 @@ mod reliability;
 mod zed;
 
 use anyhow::{anyhow, Context as _, Result};
-use assistant::PromptBuilder;
 use chrono::Offset;
 use clap::{command, Parser};
 use cli::FORCE_CLI_MODE_ENV_VAR_NAME;
@@ -24,6 +23,7 @@ use gpui::{
     UpdateGlobal as _, VisualContext,
 };
 use http_client::{read_proxy_from_env, Uri};
+use indexed_docs::IndexedDocsRegistry;
 use isahc_http_client::IsahcHttpClient;
 use language::LanguageRegistry;
 use log::LevelFilter;
@@ -52,7 +52,7 @@ use theme::{ActiveTheme, SystemAppearance, ThemeRegistry, ThemeSettings};
 use time::UtcOffset;
 use util::{maybe, parse_env_output, ResultExt, TryFutureExt};
 use uuid::Uuid;
-use welcome::{show_welcome_view, BaseKeymap, FIRST_OPEN};
+use welcome::{show_welcome_view, FIRST_OPEN};
 use workspace::{
     notifications::{simple_message_notification::MessageNotification, NotificationId},
     AppState, WorkspaceSettings, WorkspaceStore,
@@ -61,8 +61,6 @@ use zed::{
     app_menus, build_window_options, handle_cli_connection, handle_keymap_file_changes,
     initialize_workspace, open_paths_with_positions, OpenListener, OpenRequest,
 };
-
-use crate::zed::inline_completion_registry;
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -172,38 +170,14 @@ fn init_headless(
 }
 
 // init_common is called for both headless and normal mode.
-fn init_common(app_state: Arc<AppState>, cx: &mut AppContext) -> Arc<PromptBuilder> {
+fn init_common(app_state: Arc<AppState>, cx: &mut AppContext) {
     SystemAppearance::init(cx);
     theme::init(theme::LoadThemes::All(Box::new(Assets)), cx);
     command_palette::init(cx);
-    let copilot_language_server_id = app_state.languages.next_language_server_id();
-    copilot::init(
-        copilot_language_server_id,
-        app_state.fs.clone(),
-        app_state.client.http_client(),
-        app_state.node_runtime.clone(),
-        cx,
-    );
-    supermaven::init(app_state.client.clone(), cx);
-    language_model::init(
-        app_state.user_store.clone(),
-        app_state.client.clone(),
-        app_state.fs.clone(),
-        cx,
-    );
+    assistant_slash_command::init(cx);
+    IndexedDocsRegistry::init_global(cx);
     snippet_provider::init(cx);
-    inline_completion_registry::init(app_state.client.telemetry().clone(), cx);
-    let prompt_builder = assistant::init(
-        app_state.fs.clone(),
-        app_state.client.clone(),
-        stdout_is_a_pty(),
-        cx,
-    );
-    repl::init(
-        app_state.fs.clone(),
-        app_state.client.telemetry().clone(),
-        cx,
-    );
+    repl::init(app_state.fs.clone(), cx);
     extension::init(
         app_state.fs.clone(),
         app_state.client.clone(),
@@ -212,14 +186,9 @@ fn init_common(app_state: Arc<AppState>, cx: &mut AppContext) -> Arc<PromptBuild
         ThemeRegistry::global(cx),
         cx,
     );
-    prompt_builder
 }
 
-fn init_ui(
-    app_state: Arc<AppState>,
-    prompt_builder: Arc<PromptBuilder>,
-    cx: &mut AppContext,
-) -> Result<()> {
+fn init_ui(app_state: Arc<AppState>, cx: &mut AppContext) -> Result<()> {
     match cx.try_global::<AppMode>() {
         Some(AppMode::Headless(_)) => {
             return Err(anyhow!(
@@ -267,7 +236,6 @@ fn init_ui(
     call::init(app_state.client.clone(), app_state.user_store.clone(), cx);
     notifications::init(app_state.client.clone(), app_state.user_store.clone(), cx);
     collab_ui::init(&app_state, cx);
-    feedback::init(cx);
     markdown_preview::init(cx);
     welcome::init(cx);
     settings_ui::init(cx);
@@ -298,10 +266,6 @@ fn init_ui(
         }
     })
     .detach();
-    let telemetry = app_state.client.telemetry();
-    telemetry.report_setting_event("theme", cx.theme().name.to_string());
-    telemetry.report_setting_event("keymap", BaseKeymap::get_global(cx).to_string());
-    telemetry.flush_events();
 
     let fs = app_state.fs.clone();
     load_user_themes_in_background(fs.clone(), cx);
@@ -310,7 +274,7 @@ fn init_ui(
     watch_file_types(fs.clone(), cx);
 
     cx.set_menus(app_menus());
-    initialize_workspace(app_state.clone(), prompt_builder, cx);
+    initialize_workspace(app_state.clone(), cx);
 
     cx.activate(true);
 
@@ -515,27 +479,6 @@ fn main() {
         project::Project::init(&client, cx);
         client::init(&client, cx);
         language::init(cx);
-        let telemetry = client.telemetry();
-        telemetry.start(
-            system_id.as_ref().map(|id| id.to_string()),
-            installation_id.as_ref().map(|id| id.to_string()),
-            session_id,
-            cx,
-        );
-        if let (Some(system_id), Some(installation_id)) = (&system_id, &installation_id) {
-            match (&system_id, &installation_id) {
-                (IdType::New(_), IdType::New(_)) => {
-                    telemetry.report_app_event("first open".to_string());
-                    telemetry.report_app_event("first open for release channel".to_string());
-                }
-                (IdType::Existing(_), IdType::New(_)) => {
-                    telemetry.report_app_event("first open for release channel".to_string());
-                }
-                (_, IdType::Existing(_)) => {
-                    telemetry.report_app_event("open".to_string());
-                }
-            }
-        }
         let app_session = cx.new_model(|cx| AppSession::new(session, cx));
 
         let app_state = Arc::new(AppState {
@@ -551,12 +494,8 @@ fn main() {
         AppState::set_global(Arc::downgrade(&app_state), cx);
 
         auto_update::init(client.http_client(), cx);
-        reliability::init(
-            client.http_client(),
-            installation_id.clone().map(|id| id.to_string()),
-            cx,
-        );
-        let prompt_builder = init_common(app_state.clone(), cx);
+        reliability::init();
+        init_common(app_state.clone(), cx);
 
         let args = Args::parse();
         let urls: Vec<_> = args
@@ -576,7 +515,7 @@ fn main() {
             .and_then(|urls| OpenRequest::parse(urls, cx).log_err())
         {
             Some(request) => {
-                handle_open_request(request, app_state.clone(), prompt_builder.clone(), cx);
+                handle_open_request(request, app_state.clone(), cx);
             }
             None => {
                 if let Some(dev_server_token) = args.dev_server_token {
@@ -592,7 +531,7 @@ fn main() {
                     })
                     .detach();
                 } else {
-                    init_ui(app_state.clone(), prompt_builder.clone(), cx).unwrap();
+                    init_ui(app_state.clone(), cx).unwrap();
                     cx.spawn({
                         let app_state = app_state.clone();
                         |mut cx| async move {
@@ -607,12 +546,11 @@ fn main() {
         }
 
         let app_state = app_state.clone();
-        let prompt_builder = prompt_builder.clone();
         cx.spawn(move |cx| async move {
             while let Some(urls) = open_rx.next().await {
                 cx.update(|cx| {
                     if let Some(request) = OpenRequest::parse(urls, cx).log_err() {
-                        handle_open_request(request, app_state.clone(), prompt_builder.clone(), cx);
+                        handle_open_request(request, app_state.clone(), cx);
                     }
                 })
                 .ok();
@@ -682,20 +620,15 @@ fn handle_settings_changed(error: Option<anyhow::Error>, cx: &mut AppContext) {
     }
 }
 
-fn handle_open_request(
-    request: OpenRequest,
-    app_state: Arc<AppState>,
-    prompt_builder: Arc<PromptBuilder>,
-    cx: &mut AppContext,
-) {
+fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &mut AppContext) {
     if let Some(connection) = request.cli_connection {
         let app_state = app_state.clone();
-        cx.spawn(move |cx| handle_cli_connection(connection, app_state, prompt_builder, cx))
+        cx.spawn(move |cx| handle_cli_connection(connection, app_state, cx))
             .detach();
         return;
     }
 
-    if let Err(e) = init_ui(app_state.clone(), prompt_builder, cx) {
+    if let Err(e) = init_ui(app_state.clone(), cx) {
         fail_to_open_window(e, cx);
         return;
     };

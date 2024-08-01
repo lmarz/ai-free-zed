@@ -31,7 +31,6 @@ actions!(
         OpenKeymap,
         About,
         OpenLicenses,
-        OpenTelemetryLog,
         DecreaseBufferFontSize,
         IncreaseBufferFontSize,
         ResetBufferFontSize,
