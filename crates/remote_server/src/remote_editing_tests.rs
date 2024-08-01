@@ -1,6 +1,5 @@
 use crate::headless_project::HeadlessProject;
 use client::{Client, UserStore};
-use clock::FakeSystemClock;
 use fs::{FakeFs, Fs};
 use gpui::{Context, Model, SemanticVersion, TestAppContext};
 use http_client::{BlockedHttpClient, FakeHttpClient};
@@ -1234,13 +1233,7 @@ fn build_project(ssh: Model<SshRemoteClient>, cx: &mut TestAppContext) -> Model<
         }
     });
 
-    let client = cx.update(|cx| {
-        Client::new(
-            Arc::new(FakeSystemClock::default()),
-            FakeHttpClient::with_404_response(),
-            cx,
-        )
-    });
+    let client = cx.update(|cx| Client::new(FakeHttpClient::with_404_response(), cx));
 
     let node = NodeRuntime::unavailable();
     let user_store = cx.new_model(|cx| UserStore::new(client.clone(), cx));
