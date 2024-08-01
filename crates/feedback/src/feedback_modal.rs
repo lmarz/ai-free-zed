@@ -295,19 +295,15 @@ impl FeedbackModal {
             }
         }
 
-        let telemetry = zed_client.telemetry();
-        let metrics_id = telemetry.metrics_id();
-        let installation_id = telemetry.installation_id();
-        let is_staff = telemetry.is_staff();
         let http_client = zed_client.http_client();
         let feedback_endpoint = http_client.build_url("/api/feedback");
         let request = FeedbackRequestBody {
             feedback_text: &feedback_text,
             email,
-            metrics_id,
-            installation_id,
+            metrics_id: None,
+            installation_id: None,
             system_specs,
-            is_staff: is_staff.unwrap_or(false),
+            is_staff: false,
         };
         let json_bytes = serde_json::to_vec(&request)?;
         let request = Request::post(feedback_endpoint)

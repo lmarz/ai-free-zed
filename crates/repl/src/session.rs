@@ -1,10 +1,8 @@
 use crate::components::KernelListItem;
-use crate::KernelStatus;
 use crate::{
     kernels::{Kernel, KernelSpecification, RunningKernel},
     outputs::{ExecutionStatus, ExecutionView},
 };
-use client::telemetry::Telemetry;
 use collections::{HashMap, HashSet};
 use editor::{
     display_map::{
@@ -38,7 +36,6 @@ pub struct Session {
     messaging_task: Option<Task<()>>,
     process_status_task: Option<Task<()>>,
     pub kernel_specification: KernelSpecification,
-    telemetry: Arc<Telemetry>,
     _buffer_subscription: Subscription,
 }
 
@@ -190,7 +187,6 @@ impl Session {
     pub fn new(
         editor: WeakView<Editor>,
         fs: Arc<dyn Fs>,
-        telemetry: Arc<Telemetry>,
         kernel_specification: KernelSpecification,
         cx: &mut ViewContext<Self>,
     ) -> Self {
@@ -211,7 +207,6 @@ impl Session {
             blocks: HashMap::default(),
             kernel_specification,
             _buffer_subscription: subscription,
-            telemetry,
         };
 
         session.start_kernel(cx);
@@ -219,19 +214,12 @@ impl Session {
     }
 
     fn start_kernel(&mut self, cx: &mut ViewContext<Self>) {
-        let kernel_language = self.kernel_specification.kernelspec.language.clone();
         let entity_id = self.editor.entity_id();
         let working_directory = self
             .editor
             .upgrade()
             .and_then(|editor| editor.read(cx).working_directory(cx))
             .unwrap_or_else(temp_dir);
-
-        self.telemetry.report_repl_event(
-            kernel_language.clone(),
-            KernelStatus::Starting.to_string(),
-            cx.entity_id().to_string(),
-        );
 
         let kernel = RunningKernel::new(
             self.kernel_specification.clone(),
@@ -553,12 +541,6 @@ impl Session {
             JupyterMessageContent::Status(status) => {
                 self.kernel.set_execution_state(&status.execution_state);
 
-                self.telemetry.report_repl_event(
-                    self.kernel_specification.kernelspec.language.clone(),
-                    KernelStatus::from(&self.kernel).to_string(),
-                    cx.entity_id().to_string(),
-                );
-
                 cx.notify();
             }
             JupyterMessageContent::KernelInfoReply(reply) => {
@@ -604,15 +586,6 @@ impl Session {
         if let Kernel::Shutdown = kernel {
             cx.emit(SessionEvent::Shutdown(self.editor.clone()));
         }
-
-        let kernel_status = KernelStatus::from(&kernel).to_string();
-        let kernel_language = self.kernel_specification.kernelspec.language.clone();
-
-        self.telemetry.report_repl_event(
-            kernel_language,
-            kernel_status,
-            cx.entity_id().to_string(),
-        );
 
         self.kernel = kernel;
     }
