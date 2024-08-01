@@ -33,7 +33,6 @@ call.workspace = true
 client.workspace = true
 command_palette.workspace = true
 extensions_ui.workspace = true
-feedback.workspace = true
 feature_flags.workspace = true
 gpui.workspace = true
 notifications.workspace = true
