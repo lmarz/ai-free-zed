@@ -1,7 +1,6 @@
 mod connection_pool;
 
-use crate::api::{CloudflareIpCountryHeader, SystemIdHeader};
-use crate::llm::LlmTokenClaims;
+use crate::api::CloudflareIpCountryHeader;
 use crate::{
     auth,
     db::{
@@ -11,7 +10,7 @@ use crate::{
         RespondToChannelInvite, RoomId, ServerId, UpdatedChannelMessage, User, UserId,
     },
     executor::Executor,
-    AppState, Config, Error, RateLimit, Result,
+    AppState, Error, Result,
 };
 use anyhow::{anyhow, bail, Context as _};
 use async_tungstenite::tungstenite::{
@@ -34,11 +33,6 @@ use chrono::Utc;
 use collections::{HashMap, HashSet};
 pub use connection_pool::{ConnectionPool, ZedVersion};
 use core::fmt::{self, Debug, Formatter};
-use http_client::HttpClient;
-use open_ai::{OpenAiEmbeddingModel, OPEN_AI_API_URL};
-use reqwest_client::ReqwestClient;
-use sha2::Digest;
-use supermaven_api::{CreateExternalUserRequest, SupermavenAdminApi};
 
 use futures::{
     channel::oneshot, future::BoxFuture, stream::FuturesUnordered, FutureExt, SinkExt, StreamExt,
@@ -132,12 +126,9 @@ struct Session {
     peer: Arc<Peer>,
     connection_pool: Arc<parking_lot::Mutex<ConnectionPool>>,
     app_state: Arc<AppState>,
-    supermaven_client: Option<Arc<SupermavenAdminApi>>,
-    http_client: Arc<dyn HttpClient>,
     /// The GeoIP country code for the user.
     #[allow(unused)]
     geoip_country_code: Option<String>,
-    system_id: Option<String>,
     _executor: Executor,
 }
 
@@ -168,19 +159,6 @@ impl Session {
         }
     }
 
-    pub async fn has_llm_subscription(
-        &self,
-        db: &MutexGuard<'_, DbHandle>,
-    ) -> anyhow::Result<bool> {
-        if self.is_staff() {
-            return Ok(true);
-        }
-
-        let user_id = self.user_id();
-
-        Ok(db.has_active_billing_subscription(user_id).await?)
-    }
-
     pub async fn current_plan(
         &self,
         _db: &MutexGuard<'_, DbHandle>,
@@ -196,13 +174,6 @@ impl Session {
         match &self.principal {
             Principal::User(user) => user.id,
             Principal::Impersonated { user, .. } => user.id,
-        }
-    }
-
-    pub fn email(&self) -> Option<String> {
-        match &self.principal {
-            Principal::User(user) => user.email_address.clone(),
-            Principal::Impersonated { user, .. } => user.email_address.clone(),
         }
     }
 }
@@ -380,38 +351,14 @@ impl Server {
             .add_message_handler(unfollow)
             .add_message_handler(update_followers)
             .add_request_handler(get_private_user_info)
-            .add_request_handler(get_llm_api_token)
             .add_request_handler(accept_terms_of_service)
             .add_message_handler(acknowledge_channel_message)
             .add_message_handler(acknowledge_buffer_version)
-            .add_request_handler(get_supermaven_api_key)
             .add_request_handler(forward_mutating_project_request::<proto::OpenContext>)
             .add_request_handler(forward_mutating_project_request::<proto::CreateContext>)
             .add_request_handler(forward_mutating_project_request::<proto::SynchronizeContexts>)
             .add_message_handler(broadcast_project_message_from_host::<proto::AdvertiseContexts>)
-            .add_message_handler(update_context)
-            .add_request_handler({
-                let app_state = app_state.clone();
-                move |request, response, session| {
-                    let app_state = app_state.clone();
-                    async move {
-                        count_language_model_tokens(request, response, session, &app_state.config)
-                            .await
-                    }
-                }
-            })
-            .add_request_handler(get_cached_embeddings)
-            .add_request_handler({
-                let app_state = app_state.clone();
-                move |request, response, session| {
-                    compute_embeddings(
-                        request,
-                        response,
-                        session,
-                        app_state.config.openai_api_key.clone(),
-                    )
-                }
-            });
+            .add_message_handler(update_context);
 
         Arc::new(server)
     }
@@ -687,7 +634,6 @@ impl Server {
         principal: Principal,
         zed_version: ZedVersion,
         geoip_country_code: Option<String>,
-        system_id: Option<String>,
         send_connection_id: Option<oneshot::Sender<ConnectionId>>,
         executor: Executor,
     ) -> impl Future<Output = ()> {
@@ -720,20 +666,6 @@ impl Server {
 
             tracing::info!("connection opened");
 
-            let user_agent = format!("Zed Server/{}", env!("CARGO_PKG_VERSION"));
-            let http_client = match ReqwestClient::user_agent(&user_agent) {
-                Ok(http_client) => Arc::new(http_client),
-                Err(error) => {
-                    tracing::error!(?error, "failed to create HTTP client");
-                    return;
-                }
-            };
-
-            let supermaven_client = this.app_state.config.supermaven_admin_api_key.clone().map(|supermaven_admin_api_key| Arc::new(SupermavenAdminApi::new(
-                    supermaven_admin_api_key.to_string(),
-                    http_client.clone(),
-                )));
-
             let session = Session {
                 principal: principal.clone(),
                 connection_id,
@@ -741,11 +673,8 @@ impl Server {
                 peer: this.peer.clone(),
                 connection_pool: this.connection_pool.clone(),
                 app_state: this.app_state.clone(),
-                http_client,
                 geoip_country_code,
-                system_id,
                 _executor: executor.clone(),
-                supermaven_client,
             };
 
             if let Err(error) = this.send_initial_client_update(connection_id, &principal, zed_version, send_connection_id, &session).await {
@@ -1071,7 +1000,6 @@ pub async fn handle_websocket_request(
     Extension(server): Extension<Arc<Server>>,
     Extension(principal): Extension<Principal>,
     country_code_header: Option<TypedHeader<CloudflareIpCountryHeader>>,
-    system_id_header: Option<TypedHeader<SystemIdHeader>>,
     ws: WebSocketUpgrade,
 ) -> axum::response::Response {
     if protocol_version != rpc::PROTOCOL_VERSION {
@@ -1113,7 +1041,6 @@ pub async fn handle_websocket_request(
                     principal,
                     version,
                     country_code_header.map(|header| header.to_string()),
-                    system_id_header.map(|header| header.to_string()),
                     None,
                     Executor::Production,
                 )
@@ -3605,252 +3532,6 @@ async fn acknowledge_buffer_version(
     Ok(())
 }
 
-async fn count_language_model_tokens(
-    request: proto::CountLanguageModelTokens,
-    response: Response<proto::CountLanguageModelTokens>,
-    session: Session,
-    config: &Config,
-) -> Result<()> {
-    authorize_access_to_legacy_llm_endpoints(&session).await?;
-
-    let rate_limit: Box<dyn RateLimit> = match session.current_plan(&session.db().await).await? {
-        proto::Plan::ZedPro => Box::new(ZedProCountLanguageModelTokensRateLimit),
-        proto::Plan::Free => Box::new(FreeCountLanguageModelTokensRateLimit),
-    };
-
-    session
-        .app_state
-        .rate_limiter
-        .check(&*rate_limit, session.user_id())
-        .await?;
-
-    let result = match proto::LanguageModelProvider::from_i32(request.provider) {
-        Some(proto::LanguageModelProvider::Google) => {
-            let api_key = config
-                .google_ai_api_key
-                .as_ref()
-                .context("no Google AI API key configured on the server")?;
-            google_ai::count_tokens(
-                session.http_client.as_ref(),
-                google_ai::API_URL,
-                api_key,
-                serde_json::from_str(&request.request)?,
-            )
-            .await?
-        }
-        _ => return Err(anyhow!("unsupported provider"))?,
-    };
-
-    response.send(proto::CountLanguageModelTokensResponse {
-        token_count: result.total_tokens as u32,
-    })?;
-
-    Ok(())
-}
-
-struct ZedProCountLanguageModelTokensRateLimit;
-
-impl RateLimit for ZedProCountLanguageModelTokensRateLimit {
-    fn capacity(&self) -> usize {
-        std::env::var("COUNT_LANGUAGE_MODEL_TOKENS_RATE_LIMIT_PER_HOUR")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(600) // Picked arbitrarily
-    }
-
-    fn refill_duration(&self) -> chrono::Duration {
-        chrono::Duration::hours(1)
-    }
-
-    fn db_name(&self) -> &'static str {
-        "zed-pro:count-language-model-tokens"
-    }
-}
-
-struct FreeCountLanguageModelTokensRateLimit;
-
-impl RateLimit for FreeCountLanguageModelTokensRateLimit {
-    fn capacity(&self) -> usize {
-        std::env::var("COUNT_LANGUAGE_MODEL_TOKENS_RATE_LIMIT_PER_HOUR_FREE")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(600 / 10) // Picked arbitrarily
-    }
-
-    fn refill_duration(&self) -> chrono::Duration {
-        chrono::Duration::hours(1)
-    }
-
-    fn db_name(&self) -> &'static str {
-        "free:count-language-model-tokens"
-    }
-}
-
-struct ZedProComputeEmbeddingsRateLimit;
-
-impl RateLimit for ZedProComputeEmbeddingsRateLimit {
-    fn capacity(&self) -> usize {
-        std::env::var("EMBED_TEXTS_RATE_LIMIT_PER_HOUR")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(5000) // Picked arbitrarily
-    }
-
-    fn refill_duration(&self) -> chrono::Duration {
-        chrono::Duration::hours(1)
-    }
-
-    fn db_name(&self) -> &'static str {
-        "zed-pro:compute-embeddings"
-    }
-}
-
-struct FreeComputeEmbeddingsRateLimit;
-
-impl RateLimit for FreeComputeEmbeddingsRateLimit {
-    fn capacity(&self) -> usize {
-        std::env::var("EMBED_TEXTS_RATE_LIMIT_PER_HOUR_FREE")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(5000 / 10) // Picked arbitrarily
-    }
-
-    fn refill_duration(&self) -> chrono::Duration {
-        chrono::Duration::hours(1)
-    }
-
-    fn db_name(&self) -> &'static str {
-        "free:compute-embeddings"
-    }
-}
-
-async fn compute_embeddings(
-    request: proto::ComputeEmbeddings,
-    response: Response<proto::ComputeEmbeddings>,
-    session: Session,
-    api_key: Option<Arc<str>>,
-) -> Result<()> {
-    let api_key = api_key.context("no OpenAI API key configured on the server")?;
-    authorize_access_to_legacy_llm_endpoints(&session).await?;
-
-    let rate_limit: Box<dyn RateLimit> = match session.current_plan(&session.db().await).await? {
-        proto::Plan::ZedPro => Box::new(ZedProComputeEmbeddingsRateLimit),
-        proto::Plan::Free => Box::new(FreeComputeEmbeddingsRateLimit),
-    };
-
-    session
-        .app_state
-        .rate_limiter
-        .check(&*rate_limit, session.user_id())
-        .await?;
-
-    let embeddings = match request.model.as_str() {
-        "openai/text-embedding-3-small" => {
-            open_ai::embed(
-                session.http_client.as_ref(),
-                OPEN_AI_API_URL,
-                &api_key,
-                OpenAiEmbeddingModel::TextEmbedding3Small,
-                request.texts.iter().map(|text| text.as_str()),
-            )
-            .await?
-        }
-        provider => return Err(anyhow!("unsupported embedding provider {:?}", provider))?,
-    };
-
-    let embeddings = request
-        .texts
-        .iter()
-        .map(|text| {
-            let mut hasher = sha2::Sha256::new();
-            hasher.update(text.as_bytes());
-            let result = hasher.finalize();
-            result.to_vec()
-        })
-        .zip(
-            embeddings
-                .data
-                .into_iter()
-                .map(|embedding| embedding.embedding),
-        )
-        .collect::<HashMap<_, _>>();
-
-    let db = session.db().await;
-    db.save_embeddings(&request.model, &embeddings)
-        .await
-        .context("failed to save embeddings")
-        .trace_err();
-
-    response.send(proto::ComputeEmbeddingsResponse {
-        embeddings: embeddings
-            .into_iter()
-            .map(|(digest, dimensions)| proto::Embedding { digest, dimensions })
-            .collect(),
-    })?;
-    Ok(())
-}
-
-async fn get_cached_embeddings(
-    request: proto::GetCachedEmbeddings,
-    response: Response<proto::GetCachedEmbeddings>,
-    session: Session,
-) -> Result<()> {
-    authorize_access_to_legacy_llm_endpoints(&session).await?;
-
-    let db = session.db().await;
-    let embeddings = db.get_embeddings(&request.model, &request.digests).await?;
-
-    response.send(proto::GetCachedEmbeddingsResponse {
-        embeddings: embeddings
-            .into_iter()
-            .map(|(digest, dimensions)| proto::Embedding { digest, dimensions })
-            .collect(),
-    })?;
-    Ok(())
-}
-
-/// This is leftover from before the LLM service.
-///
-/// The endpoints protected by this check will be moved there eventually.
-async fn authorize_access_to_legacy_llm_endpoints(session: &Session) -> Result<(), Error> {
-    if session.is_staff() {
-        Ok(())
-    } else {
-        Err(anyhow!("permission denied"))?
-    }
-}
-
-/// Get a Supermaven API key for the user
-async fn get_supermaven_api_key(
-    _request: proto::GetSupermavenApiKey,
-    response: Response<proto::GetSupermavenApiKey>,
-    session: Session,
-) -> Result<()> {
-    let user_id: String = session.user_id().to_string();
-    if !session.is_staff() {
-        return Err(anyhow!("supermaven not enabled for this account"))?;
-    }
-
-    let email = session
-        .email()
-        .ok_or_else(|| anyhow!("user must have an email"))?;
-
-    let supermaven_admin_api = session
-        .supermaven_client
-        .as_ref()
-        .ok_or_else(|| anyhow!("supermaven not configured"))?;
-
-    let result = supermaven_admin_api
-        .try_get_or_create_user(CreateExternalUserRequest { id: user_id, email })
-        .await?;
-
-    response.send(proto::GetSupermavenApiKeyResponse {
-        api_key: result.api_key,
-    })?;
-
-    Ok(())
-}
-
 /// Start receiving chat updates for a channel
 async fn join_channel_chat(
     request: proto::JoinChannelChat,
@@ -4013,66 +3694,6 @@ async fn accept_terms_of_service(
     response.send(proto::AcceptTermsOfServiceResponse {
         accepted_tos_at: accepted_tos_at.timestamp() as u64,
     })?;
-    Ok(())
-}
-
-/// The minimum account age an account must have in order to use the LLM service.
-const MIN_ACCOUNT_AGE_FOR_LLM_USE: chrono::Duration = chrono::Duration::days(30);
-
-async fn get_llm_api_token(
-    _request: proto::GetLlmToken,
-    response: Response<proto::GetLlmToken>,
-    session: Session,
-) -> Result<()> {
-    let db = session.db().await;
-
-    let flags = db.get_user_flags(session.user_id()).await?;
-    let has_language_models_feature_flag = flags.iter().any(|flag| flag == "language-models");
-    let has_llm_closed_beta_feature_flag = flags.iter().any(|flag| flag == "llm-closed-beta");
-    let has_predict_edits_feature_flag = flags.iter().any(|flag| flag == "predict-edits");
-
-    if !session.is_staff() && !has_language_models_feature_flag {
-        Err(anyhow!("permission denied"))?
-    }
-
-    let user_id = session.user_id();
-    let user = db
-        .get_user_by_id(user_id)
-        .await?
-        .ok_or_else(|| anyhow!("user {} not found", user_id))?;
-
-    if user.accepted_tos_at.is_none() {
-        Err(anyhow!("terms of service not accepted"))?
-    }
-
-    let has_llm_subscription = session.has_llm_subscription(&db).await?;
-
-    let bypass_account_age_check =
-        has_llm_subscription || flags.iter().any(|flag| flag == "bypass-account-age-check");
-    if !bypass_account_age_check {
-        let mut account_created_at = user.created_at;
-        if let Some(github_created_at) = user.github_user_created_at {
-            account_created_at = account_created_at.min(github_created_at);
-        }
-        if Utc::now().naive_utc() - account_created_at < MIN_ACCOUNT_AGE_FOR_LLM_USE {
-            Err(anyhow!("account too young"))?
-        }
-    }
-
-    let billing_preferences = db.get_billing_preferences(user.id).await?;
-
-    let token = LlmTokenClaims::create(
-        &user,
-        session.is_staff(),
-        billing_preferences,
-        has_llm_closed_beta_feature_flag,
-        has_predict_edits_feature_flag,
-        has_llm_subscription,
-        session.current_plan(&db).await?,
-        session.system_id.clone(),
-        &session.app_state.config,
-    )?;
-    response.send(proto::GetLlmTokenResponse { token })?;
     Ok(())
 }
 

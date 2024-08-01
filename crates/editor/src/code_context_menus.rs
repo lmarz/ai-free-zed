@@ -659,9 +659,8 @@ impl CompletionsMenu {
                                                 .with_highlights(&style.text, None),
                                         ),
                                     )
-                                    .on_click(cx.listener(move |editor, _event, cx| {
+                                    .on_click(cx.listener(move |_, _event, cx| {
                                         cx.stop_propagation();
-                                        editor.toggle_zed_predict_tos(cx);
                                     })),
                             ),
 
