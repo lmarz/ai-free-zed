@@ -2,13 +2,8 @@
 resolver = "2"
 members = [
     "crates/activity_indicator",
-    "crates/anthropic",
     "crates/assets",
-    "crates/assistant",
-    "crates/assistant2",
     "crates/assistant_slash_command",
-    "crates/assistant_tool",
-    "crates/assistant_tools",
     "crates/audio",
     "crates/auto_update",
     "crates/auto_update_ui",
@@ -23,21 +18,16 @@ members = [
     "crates/collections",
     "crates/command_palette",
     "crates/command_palette_hooks",
-    "crates/context_server",
-    "crates/context_server_settings",
-    "crates/copilot",
     "crates/db",
     "crates/diagnostics",
     "crates/docs_preprocessor",
     "crates/editor",
-    "crates/evals",
     "crates/extension",
     "crates/extension_api",
     "crates/extension_cli",
     "crates/extension_host",
     "crates/extensions_ui",
     "crates/feature_flags",
-    "crates/feedback",
     "crates/file_finder",
     "crates/file_icons",
     "crates/fireworks",
@@ -47,7 +37,6 @@ members = [
     "crates/git",
     "crates/git_hosting_providers",
     "crates/go_to_line",
-    "crates/google_ai",
     "crates/gpui",
     "crates/gpui_macros",
     "crates/html_to_markdown",
@@ -55,21 +44,16 @@ members = [
     "crates/image_viewer",
     "crates/indexed_docs",
     "crates/inline_completion",
-    "crates/inline_completion_button",
     "crates/install_cli",
     "crates/journal",
     "crates/language",
     "crates/language_extension",
-    "crates/language_model",
-    "crates/language_model_selector",
-    "crates/language_models",
     "crates/language_selector",
     "crates/language_tools",
     "crates/languages",
     "crates/livekit_client",
     "crates/livekit_client_macos",
     "crates/livekit_server",
-    "crates/lmstudio",
     "crates/lsp",
     "crates/markdown",
     "crates/markdown_preview",
@@ -78,8 +62,6 @@ members = [
     "crates/multi_buffer",
     "crates/node_runtime",
     "crates/notifications",
-    "crates/ollama",
-    "crates/open_ai",
     "crates/outline",
     "crates/outline_panel",
     "crates/paths",
@@ -101,7 +83,6 @@ members = [
     "crates/rope",
     "crates/rpc",
     "crates/search",
-    "crates/semantic_index",
     "crates/semantic_version",
     "crates/session",
     "crates/settings",
@@ -114,8 +95,6 @@ members = [
     "crates/story",
     "crates/storybook",
     "crates/sum_tree",
-    "crates/supermaven",
-    "crates/supermaven_api",
     "crates/tab_switcher",
     "crates/task",
     "crates/tasks_ui",
@@ -144,7 +123,6 @@ members = [
     "crates/worktree",
     "crates/zed",
     "crates/zed_actions",
-    "crates/zeta",
     "crates/git_ui",
 
     #
@@ -189,11 +167,7 @@ default-members = ["crates/zed"]
 #
 
 activity_indicator = { path = "crates/activity_indicator" }
-ai = { path = "crates/ai" }
-anthropic = { path = "crates/anthropic" }
 assets = { path = "crates/assets" }
-assistant = { path = "crates/assistant" }
-assistant2 = { path = "crates/assistant2" }
 assistant_slash_command = { path = "crates/assistant_slash_command" }
 assistant_tool = { path = "crates/assistant_tool" }
 assistant_tools = { path = "crates/assistant_tools" }
@@ -211,9 +185,6 @@ collab_ui = { path = "crates/collab_ui" }
 collections = { path = "crates/collections" }
 command_palette = { path = "crates/command_palette" }
 command_palette_hooks = { path = "crates/command_palette_hooks" }
-context_server = { path = "crates/context_server" }
-context_server_settings = { path = "crates/context_server_settings" }
-copilot = { path = "crates/copilot" }
 db = { path = "crates/db" }
 diagnostics = { path = "crates/diagnostics" }
 editor = { path = "crates/editor" }
@@ -221,7 +192,6 @@ extension = { path = "crates/extension" }
 extension_host = { path = "crates/extension_host" }
 extensions_ui = { path = "crates/extensions_ui" }
 feature_flags = { path = "crates/feature_flags" }
-feedback = { path = "crates/feedback" }
 file_finder = { path = "crates/file_finder" }
 file_icons = { path = "crates/file_icons" }
 fireworks = { path = "crates/fireworks" }
@@ -232,7 +202,6 @@ git = { path = "crates/git" }
 git_ui = { path = "crates/git_ui" }
 git_hosting_providers = { path = "crates/git_hosting_providers" }
 go_to_line = { path = "crates/go_to_line" }
-google_ai = { path = "crates/google_ai" }
 gpui = { path = "crates/gpui", default-features = false, features = [
     "http_client",
 ] }
@@ -242,21 +211,16 @@ http_client = { path = "crates/http_client" }
 image_viewer = { path = "crates/image_viewer" }
 indexed_docs = { path = "crates/indexed_docs" }
 inline_completion = { path = "crates/inline_completion" }
-inline_completion_button = { path = "crates/inline_completion_button" }
 install_cli = { path = "crates/install_cli" }
 journal = { path = "crates/journal" }
 language = { path = "crates/language" }
 language_extension = { path = "crates/language_extension" }
-language_model = { path = "crates/language_model" }
-language_model_selector = { path = "crates/language_model_selector" }
-language_models = { path = "crates/language_models" }
 language_selector = { path = "crates/language_selector" }
 language_tools = { path = "crates/language_tools" }
 languages = { path = "crates/languages" }
 livekit_client = { path = "crates/livekit_client" }
 livekit_client_macos = { path = "crates/livekit_client_macos" }
 livekit_server = { path = "crates/livekit_server" }
-lmstudio = { path = "crates/lmstudio" }
 lsp = { path = "crates/lsp" }
 markdown = { path = "crates/markdown" }
 markdown_preview = { path = "crates/markdown_preview" }
@@ -265,8 +229,6 @@ menu = { path = "crates/menu" }
 multi_buffer = { path = "crates/multi_buffer" }
 node_runtime = { path = "crates/node_runtime" }
 notifications = { path = "crates/notifications" }
-ollama = { path = "crates/ollama" }
-open_ai = { path = "crates/open_ai" }
 outline = { path = "crates/outline" }
 outline_panel = { path = "crates/outline_panel" }
 paths = { path = "crates/paths" }
@@ -302,8 +264,6 @@ sqlez_macros = { path = "crates/sqlez_macros" }
 story = { path = "crates/story" }
 storybook = { path = "crates/storybook" }
 sum_tree = { path = "crates/sum_tree" }
-supermaven = { path = "crates/supermaven" }
-supermaven_api = { path = "crates/supermaven_api" }
 tab_switcher = { path = "crates/tab_switcher" }
 task = { path = "crates/task" }
 tasks_ui = { path = "crates/tasks_ui" }
@@ -331,7 +291,6 @@ workspace = { path = "crates/workspace" }
 worktree = { path = "crates/worktree" }
 zed = { path = "crates/zed" }
 zed_actions = { path = "crates/zed_actions" }
-zeta = { path = "crates/zeta" }
 
 #
 # External crates
@@ -607,19 +566,15 @@ breadcrumbs = { codegen-units = 1 }
 collections = { codegen-units = 1 }
 command_palette = { codegen-units = 1 }
 command_palette_hooks = { codegen-units = 1 }
-evals = { codegen-units = 1 }
 extension_cli = { codegen-units = 1 }
 feature_flags = { codegen-units = 1 }
 file_icons = { codegen-units = 1 }
 fsevent = { codegen-units = 1 }
 image_viewer = { codegen-units = 1 }
-inline_completion_button = { codegen-units = 1 }
 install_cli = { codegen-units = 1 }
 journal = { codegen-units = 1 }
-lmstudio = { codegen-units = 1 }
 menu = { codegen-units = 1 }
 notifications = { codegen-units = 1 }
-ollama = { codegen-units = 1 }
 outline = { codegen-units = 1 }
 paths = { codegen-units = 1 }
 prettier = { codegen-units = 1 }
@@ -634,7 +589,6 @@ snippet = { codegen-units = 1 }
 snippets_ui = { codegen-units = 1 }
 sqlez_macros = { codegen-units = 1 }
 story = { codegen-units = 1 }
-supermaven_api = { codegen-units = 1 }
 telemetry_events = { codegen-units = 1 }
 theme_selector = { codegen-units = 1 }
 time_format = { codegen-units = 1 }

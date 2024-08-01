@@ -32,7 +32,6 @@ async-recursion.workspace = true
 bincode = "1.2.1"
 call.workspace = true
 client.workspace = true
-clock.workspace = true
 collections.workspace = true
 db.workspace = true
 derive_more.workspace = true

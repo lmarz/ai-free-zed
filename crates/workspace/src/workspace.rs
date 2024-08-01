@@ -642,9 +642,8 @@ impl AppState {
 
         let fs = fs::FakeFs::new(cx.background_executor().clone());
         let languages = Arc::new(LanguageRegistry::test(cx.background_executor().clone()));
-        let clock = Arc::new(clock::FakeSystemClock::new());
         let http_client = http_client::FakeHttpClient::with_404_response();
-        let client = Client::new(clock, http_client.clone(), cx);
+        let client = Client::new(http_client.clone(), cx);
         let session = cx.new_model(|cx| AppSession::new(Session::test(), cx));
         let user_store = cx.new_model(|cx| UserStore::new(client.clone(), cx));
         let workspace_store = cx.new_model(|cx| WorkspaceStore::new(client.clone(), cx));
@@ -2571,12 +2570,6 @@ impl Workspace {
         focus_item: bool,
         cx: &mut WindowContext,
     ) {
-        if let Some(text) = item.telemetry_event_text(cx) {
-            self.client()
-                .telemetry()
-                .report_app_event(format!("{}: open", text));
-        }
-
         pane.update(cx, |pane, cx| {
             pane.add_item(item, activate_pane, focus_item, destination_index, cx)
         });
@@ -5764,11 +5757,6 @@ pub fn open_ssh_project(
             cx.replace_root_view(|cx| {
                 let mut workspace =
                     Workspace::new(Some(workspace_id), project, app_state.clone(), cx);
-
-                workspace
-                    .client()
-                    .telemetry()
-                    .report_app_event("open ssh project".to_string());
 
                 workspace.set_serialized_ssh_project(serialized_ssh_project);
                 workspace

@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Context, Result};
-use client::{Client, TelemetrySettings};
 use db::kvp::KEY_VALUE_STORE;
 use db::RELEASE_CHANNEL;
 use gpui::{
@@ -333,7 +332,7 @@ impl AutoUpdater {
                 "downloading zed-remote-server {os} {arch} version {}",
                 release.version
             );
-            download_remote_server_binary(&version_path, release, client, cx).await?;
+            download_remote_server_binary(&version_path, release, client).await?;
         }
 
         Ok(version_path)
@@ -364,7 +363,7 @@ impl AutoUpdater {
         )
         .await?;
 
-        let update_request_body = build_remote_server_update_request_body(cx)?;
+        let update_request_body = build_remote_server_update_request_body()?;
         let body = serde_json::to_string(&update_request_body)?;
 
         Ok(Some((release.url, body)))
@@ -483,7 +482,7 @@ impl AutoUpdater {
         );
 
         let downloaded_asset = temp_dir.path().join(filename);
-        download_release(&downloaded_asset, release, client, &cx).await?;
+        download_release(&downloaded_asset, release, client).await?;
 
         this.update(&mut cx, |this, cx| {
             this.status = AutoUpdateStatus::Installing;
@@ -541,11 +540,10 @@ async fn download_remote_server_binary(
     target_path: &PathBuf,
     release: JsonRelease,
     client: Arc<HttpClientWithUrl>,
-    cx: &AsyncAppContext,
 ) -> Result<()> {
     let temp = tempfile::Builder::new().tempfile_in(remote_servers_dir())?;
     let mut temp_file = File::create(&temp).await?;
-    let update_request_body = build_remote_server_update_request_body(cx)?;
+    let update_request_body = build_remote_server_update_request_body()?;
     let request_body = AsyncBody::from(serde_json::to_string(&update_request_body)?);
 
     let mut response = client.get(&release.url, request_body, true).await?;
@@ -561,28 +559,12 @@ async fn download_remote_server_binary(
     Ok(())
 }
 
-fn build_remote_server_update_request_body(cx: &AsyncAppContext) -> Result<UpdateRequestBody> {
-    let (installation_id, release_channel, telemetry_enabled, is_staff) = cx.update(|cx| {
-        let telemetry = Client::global(cx).telemetry().clone();
-        let is_staff = telemetry.is_staff();
-        let installation_id = telemetry.installation_id();
-        let release_channel =
-            ReleaseChannel::try_global(cx).map(|release_channel| release_channel.display_name());
-        let telemetry_enabled = TelemetrySettings::get_global(cx).metrics;
-
-        (
-            installation_id,
-            release_channel,
-            telemetry_enabled,
-            is_staff,
-        )
-    })?;
-
+fn build_remote_server_update_request_body() -> Result<UpdateRequestBody> {
     Ok(UpdateRequestBody {
-        installation_id,
-        release_channel,
-        telemetry: telemetry_enabled,
-        is_staff,
+        installation_id: None,
+        release_channel: None,
+        telemetry: false,
+        is_staff: None,
         destination: "remote",
     })
 }
@@ -591,31 +573,14 @@ async fn download_release(
     target_path: &Path,
     release: JsonRelease,
     client: Arc<HttpClientWithUrl>,
-    cx: &AsyncAppContext,
 ) -> Result<()> {
     let mut target_file = File::create(&target_path).await?;
 
-    let (installation_id, release_channel, telemetry_enabled, is_staff) = cx.update(|cx| {
-        let telemetry = Client::global(cx).telemetry().clone();
-        let is_staff = telemetry.is_staff();
-        let installation_id = telemetry.installation_id();
-        let release_channel =
-            ReleaseChannel::try_global(cx).map(|release_channel| release_channel.display_name());
-        let telemetry_enabled = TelemetrySettings::get_global(cx).metrics;
-
-        (
-            installation_id,
-            release_channel,
-            telemetry_enabled,
-            is_staff,
-        )
-    })?;
-
     let request_body = AsyncBody::from(serde_json::to_string(&UpdateRequestBody {
-        installation_id,
-        release_channel,
-        telemetry: telemetry_enabled,
-        is_staff,
+        installation_id: None,
+        release_channel: None,
+        telemetry: false,
+        is_staff: None,
         destination: "local",
     })?);
 

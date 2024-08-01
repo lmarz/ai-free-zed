@@ -691,7 +691,6 @@ fn generate_commands(_: &AppContext) -> Vec<VimCommand> {
         VimCommand::str(("C", "ollab"), "collab_panel::ToggleFocus"),
         VimCommand::str(("Ch", "at"), "chat_panel::ToggleFocus"),
         VimCommand::str(("No", "tifications"), "notification_panel::ToggleFocus"),
-        VimCommand::str(("A", "I"), "assistant::ToggleFocus"),
         VimCommand::new(("noh", "lsearch"), search::buffer_search::Dismiss),
         VimCommand::new(("$", ""), EndOfDocument),
         VimCommand::new(("%", ""), EndOfDocument),
