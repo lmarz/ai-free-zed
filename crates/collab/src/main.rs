@@ -6,12 +6,10 @@ use axum::{
     routing::get,
     Extension, Router,
 };
-use collab::api::billing::sync_llm_usage_with_stripe_periodically;
 use collab::api::CloudflareIpCountryHeader;
-use collab::llm::{db::LlmDatabase, log_usage_periodically};
 use collab::migrations::run_database_migrations;
 use collab::user_backfiller::spawn_user_backfiller;
-use collab::{api::billing::poll_stripe_events_periodically, llm::LlmState, ServiceMode};
+use collab::{api::billing::poll_stripe_events_periodically, ServiceMode};
 use collab::{
     api::fetch_extensions_from_blob_store_periodically, db, env, executor::Executor,
     rpc::ResultExt, AppState, Config, RateLimiter, Result,
@@ -30,7 +28,7 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::{
     filter::EnvFilter, fmt::format::JsonFields, util::SubscriberInitExt, Layer,
 };
-use util::{maybe, ResultExt as _};
+use util::ResultExt as _;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const REVISION: Option<&'static str> = option_env!("GITHUB_SHA");
@@ -61,13 +59,6 @@ async fn main() -> Result<()> {
             db.initialize_notification_kinds().await?;
 
             collab::seed::seed(&config, &db, false).await?;
-
-            if let Some(llm_database_url) = config.llm_database_url.clone() {
-                let db_options = db::ConnectOptions::new(llm_database_url);
-                let mut db = LlmDatabase::new(db_options.clone(), Executor::Production).await?;
-                db.initialize().await?;
-                collab::llm::db::seed_database(&config, &mut db, true).await?;
-            }
         }
         Some("serve") => {
             let mode = match args.next().as_deref() {
@@ -93,18 +84,6 @@ async fn main() -> Result<()> {
                 .expect("failed to bind TCP listener");
 
             let mut on_shutdown = None;
-
-            if mode.is_llm() {
-                setup_llm_database(&config).await?;
-
-                let state = LlmState::new(config.clone(), Executor::Production).await?;
-
-                log_usage_periodically(state.clone());
-
-                app = app
-                    .merge(collab::llm::routes())
-                    .layer(Extension(state.clone()));
-            }
 
             if mode.is_collab() || mode.is_api() {
                 setup_app_database(&config).await?;
@@ -136,28 +115,6 @@ async fn main() -> Result<()> {
                     poll_stripe_events_periodically(state.clone());
                     fetch_extensions_from_blob_store_periodically(state.clone());
                     spawn_user_backfiller(state.clone());
-
-                    let llm_db = maybe!(async {
-                        let database_url = state
-                            .config
-                            .llm_database_url
-                            .as_ref()
-                            .ok_or_else(|| anyhow!("missing LLM_DATABASE_URL"))?;
-                        let max_connections = state
-                            .config
-                            .llm_database_max_connections
-                            .ok_or_else(|| anyhow!("missing LLM_DATABASE_MAX_CONNECTIONS"))?;
-
-                        let mut db_options = db::ConnectOptions::new(database_url);
-                        db_options.max_connections(max_connections);
-                        LlmDatabase::new(db_options, state.executor.clone()).await
-                    })
-                    .await
-                    .trace_err();
-
-                    if let Some(llm_db) = llm_db {
-                        sync_llm_usage_with_stripe_periodically(state.clone(), llm_db);
-                    }
 
                     app = app
                         .merge(collab::api::events::router())
@@ -286,54 +243,13 @@ async fn setup_app_database(config: &Config) -> Result<()> {
     Ok(())
 }
 
-async fn setup_llm_database(config: &Config) -> Result<()> {
-    let database_url = config
-        .llm_database_url
-        .as_ref()
-        .ok_or_else(|| anyhow!("missing LLM_DATABASE_URL"))?;
-
-    let db_options = db::ConnectOptions::new(database_url.clone());
-    let db = LlmDatabase::new(db_options, Executor::Production).await?;
-
-    let migrations_path = config
-        .llm_database_migrations_path
-        .as_deref()
-        .unwrap_or_else(|| {
-            #[cfg(feature = "sqlite")]
-            let default_migrations = concat!(env!("CARGO_MANIFEST_DIR"), "/migrations_llm.sqlite");
-            #[cfg(not(feature = "sqlite"))]
-            let default_migrations = concat!(env!("CARGO_MANIFEST_DIR"), "/migrations_llm");
-
-            Path::new(default_migrations)
-        });
-
-    let migrations = run_database_migrations(db.options(), migrations_path).await?;
-    for (migration, duration) in migrations {
-        log::info!(
-            "Migrated {} {} {:?}",
-            migration.version,
-            migration.description,
-            duration
-        );
-    }
-
-    Ok(())
-}
-
 async fn handle_root(Extension(mode): Extension<ServiceMode>) -> String {
     format!("zed:{mode} v{VERSION} ({})", REVISION.unwrap_or("unknown"))
 }
 
-async fn handle_liveness_probe(
-    app_state: Option<Extension<Arc<AppState>>>,
-    llm_state: Option<Extension<Arc<LlmState>>>,
-) -> Result<String> {
+async fn handle_liveness_probe(app_state: Option<Extension<Arc<AppState>>>) -> Result<String> {
     if let Some(state) = app_state {
         state.db.get_all_users(0, 1).await?;
-    }
-
-    if let Some(llm_state) = llm_state {
-        llm_state.db.list_providers().await?;
     }
 
     Ok("ok".to_string())

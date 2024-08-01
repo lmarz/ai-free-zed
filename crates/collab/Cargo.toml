@@ -18,7 +18,6 @@ sqlite = ["sea-orm/sqlx-sqlite", "sqlx/sqlite"]
 test-support = ["sqlite"]
 
 [dependencies]
-anthropic.workspace = true
 anyhow.workspace = true
 async-stripe.workspace = true
 async-tungstenite.workspace = true
@@ -34,7 +33,6 @@ collections.workspace = true
 dashmap.workspace = true
 envy = "0.4.2"
 futures.workspace = true
-google_ai.workspace = true
 hex.workspace = true
 http_client.workspace = true
 isahc_http_client.workspace = true
@@ -42,7 +40,6 @@ jsonwebtoken.workspace = true
 live_kit_server.workspace = true
 log.workspace = true
 nanoid.workspace = true
-open_ai.workspace = true
 parking_lot.workspace = true
 prometheus = "0.13"
 prost.workspace = true
@@ -61,7 +58,6 @@ sha2.workspace = true
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "json", "time", "uuid", "any"] }
 strum.workspace = true
 subtle.workspace = true
-supermaven_api.workspace = true
 telemetry_events.workspace = true
 text.workspace = true
 thiserror.workspace = true
@@ -76,7 +72,6 @@ util.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-assistant = { workspace = true, features = ["test-support"] }
 async-trait.workspace = true
 audio.workspace = true
 call = { workspace = true, features = ["test-support"] }
@@ -97,7 +92,6 @@ headless.workspace = true
 hyper.workspace = true
 indoc.workspace = true
 language = { workspace = true, features = ["test-support"] }
-language_model = { workspace = true, features = ["test-support"] }
 live_kit_client = { workspace = true, features = ["test-support"] }
 lsp = { workspace = true, features = ["test-support"] }
 menu.workspace = true
