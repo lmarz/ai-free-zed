@@ -1,5 +1,4 @@
 use collections::{HashMap, VecDeque};
-use copilot::Copilot;
 use editor::{actions::MoveToEnd, Editor, EditorEvent};
 use futures::{channel::mpsc, StreamExt};
 use gpui::{
@@ -25,8 +24,6 @@ const MAX_STORED_LOG_ENTRIES: usize = 2000;
 pub struct LogStore {
     projects: HashMap<WeakModel<Project>, ProjectState>,
     language_servers: HashMap<LanguageServerId, LanguageServerState>,
-    copilot_log_subscription: Option<lsp::Subscription>,
-    _copilot_subscription: Option<gpui::Subscription>,
     io_tx: mpsc::UnboundedSender<(LanguageServerId, IoKind, String)>,
 }
 
@@ -47,14 +44,12 @@ struct LanguageServerState {
 
 enum LanguageServerKind {
     Local { project: WeakModel<Project> },
-    Global { name: LanguageServerName },
 }
 
 impl LanguageServerKind {
     fn project(&self) -> Option<&WeakModel<Project>> {
         match self {
             Self::Local { project } => Some(project),
-            Self::Global { .. } => None,
         }
     }
 }
@@ -149,45 +144,7 @@ impl LogStore {
     pub fn new(cx: &mut ModelContext<Self>) -> Self {
         let (io_tx, mut io_rx) = mpsc::unbounded();
 
-        let copilot_subscription = Copilot::global(cx).map(|copilot| {
-            let copilot = &copilot;
-            cx.subscribe(copilot, |this, copilot, inline_completion_event, cx| {
-                match inline_completion_event {
-                    copilot::Event::CopilotLanguageServerStarted => {
-                        if let Some(server) = copilot.read(cx).language_server() {
-                            let server_id = server.server_id();
-                            let weak_this = cx.weak_model();
-                            this.copilot_log_subscription =
-                                Some(server.on_notification::<copilot::request::LogMessage, _>(
-                                    move |params, mut cx| {
-                                        weak_this
-                                            .update(&mut cx, |this, cx| {
-                                                this.add_language_server_log(
-                                                    server_id,
-                                                    &params.message,
-                                                    cx,
-                                                );
-                                            })
-                                            .ok();
-                                    },
-                                ));
-                            this.add_language_server(
-                                LanguageServerKind::Global {
-                                    name: LanguageServerName(Arc::from("copilot")),
-                                },
-                                server.clone(),
-                                cx,
-                            );
-                        }
-                    }
-                    _ => {}
-                }
-            })
-        });
-
         let this = Self {
-            copilot_log_subscription: None,
-            _copilot_subscription: copilot_subscription,
             projects: HashMap::default(),
             language_servers: HashMap::default(),
             io_tx,
@@ -386,7 +343,6 @@ impl LogStore {
                         None
                     }
                 }
-                LanguageServerKind::Global { .. } => Some(*id),
             })
     }
 
@@ -591,55 +547,44 @@ impl LspLogView {
     pub(crate) fn menu_items<'a>(&'a self, cx: &'a AppContext) -> Option<Vec<LogMenuItem>> {
         let log_store = self.log_store.read(cx);
 
-        let mut rows = self
-            .project
-            .read(cx)
-            .language_servers()
-            .filter_map(|(server_id, language_server_name, worktree_id)| {
-                let worktree = self.project.read(cx).worktree_for_id(worktree_id, cx)?;
-                let state = log_store.language_servers.get(&server_id)?;
-                Some(LogMenuItem {
-                    server_id,
-                    server_name: language_server_name,
-                    worktree_root_name: worktree.read(cx).root_name().to_string(),
-                    rpc_trace_enabled: state.rpc_state.is_some(),
-                    selected_entry: self.active_entry_kind,
-                    trace_level: lsp::TraceValue::Off,
+        let mut rows =
+            self.project
+                .read(cx)
+                .language_servers()
+                .filter_map(|(server_id, language_server_name, worktree_id)| {
+                    let worktree = self.project.read(cx).worktree_for_id(worktree_id, cx)?;
+                    let state = log_store.language_servers.get(&server_id)?;
+                    Some(LogMenuItem {
+                        server_id,
+                        server_name: language_server_name,
+                        worktree_root_name: worktree.read(cx).root_name().to_string(),
+                        rpc_trace_enabled: state.rpc_state.is_some(),
+                        selected_entry: self.active_entry_kind,
+                        trace_level: lsp::TraceValue::Off,
+                    })
                 })
-            })
-            .chain(
-                self.project
-                    .read(cx)
-                    .supplementary_language_servers()
-                    .filter_map(|(&server_id, name)| {
-                        let state = log_store.language_servers.get(&server_id)?;
-                        Some(LogMenuItem {
-                            server_id,
-                            server_name: name.clone(),
-                            worktree_root_name: "supplementary".to_string(),
-                            rpc_trace_enabled: state.rpc_state.is_some(),
-                            selected_entry: self.active_entry_kind,
-                            trace_level: lsp::TraceValue::Off,
-                        })
-                    }),
-            )
-            .chain(
-                log_store
-                    .language_servers
-                    .iter()
-                    .filter_map(|(server_id, state)| match &state.kind {
-                        LanguageServerKind::Global { name } => Some(LogMenuItem {
-                            server_id: *server_id,
-                            server_name: name.clone(),
-                            worktree_root_name: "supplementary".to_string(),
-                            rpc_trace_enabled: state.rpc_state.is_some(),
-                            selected_entry: self.active_entry_kind,
-                            trace_level: lsp::TraceValue::Off,
+                .chain(
+                    self.project
+                        .read(cx)
+                        .supplementary_language_servers()
+                        .filter_map(|(&server_id, name)| {
+                            let state = log_store.language_servers.get(&server_id)?;
+                            Some(LogMenuItem {
+                                server_id,
+                                server_name: name.clone(),
+                                worktree_root_name: "supplementary".to_string(),
+                                rpc_trace_enabled: state.rpc_state.is_some(),
+                                selected_entry: self.active_entry_kind,
+                                trace_level: lsp::TraceValue::Off,
+                            })
                         }),
+                )
+                .chain(log_store.language_servers.iter().filter_map(
+                    |(_, state)| match &state.kind {
                         _ => None,
-                    }),
-            )
-            .collect::<Vec<_>>();
+                    },
+                ))
+                .collect::<Vec<_>>();
         rows.sort_by_key(|row| row.server_id);
         rows.dedup_by_key(|row| row.server_id);
         Some(rows)

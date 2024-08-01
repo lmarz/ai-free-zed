@@ -123,8 +123,6 @@
       "ctrl-f": "buffer_search::Deploy",
       "ctrl-h": ["buffer_search::Deploy", { "replace_enabled": true }],
       // "cmd-e": ["buffer_search::Deploy", { "focus": false }],
-      "ctrl->": "assistant::QuoteSelection",
-      "ctrl-<": "assistant::InsertIntoEditor",
       "ctrl-alt-e": "editor::SelectEnclosingSymbol"
     }
   },
@@ -154,23 +152,6 @@
     "context": "Markdown",
     "bindings": {
       "ctrl-c": "markdown::Copy"
-    }
-  },
-  {
-    "context": "AssistantPanel",
-    "bindings": {
-      "ctrl-g": "search::SelectNextMatch",
-      "ctrl-shift-g": "search::SelectPrevMatch",
-      "alt-m": "assistant::ToggleModelSelector",
-      "ctrl-k h": "assistant::DeployHistory",
-      "ctrl-k l": "assistant::DeployPromptLibrary"
-    }
-  },
-  {
-    "context": "PromptLibrary",
-    "bindings": {
-      "ctrl-n": "prompt_library::NewPrompt",
-      "ctrl-shift-s": "prompt_library::ToggleDefaultPrompt"
     }
   },
   {
@@ -378,7 +359,6 @@
       "ctrl-shift-m": "diagnostics::Deploy",
       "ctrl-shift-e": "project_panel::ToggleFocus",
       "ctrl-shift-b": "outline_panel::ToggleFocus",
-      "ctrl-?": "assistant::ToggleFocus",
       "ctrl-alt-s": "workspace::SaveAll",
       "ctrl-k m": "language_selector::Toggle",
       "escape": "workspace::Unfollow",
@@ -484,8 +464,7 @@
       "shift-enter": "editor::ExpandExcerpts",
       "ctrl-k enter": "editor::OpenExcerptsSplit",
       "ctrl-f8": "editor::GoToHunk",
-      "ctrl-shift-f8": "editor::GoToPrevHunk",
-      "ctrl-enter": "assistant::InlineAssist"
+      "ctrl-shift-f8": "editor::GoToPrevHunk"
     }
   },
   {
@@ -498,13 +477,7 @@
   {
     "context": "ContextEditor > Editor",
     "bindings": {
-      "ctrl-enter": "assistant::Assist",
       "ctrl-s": "workspace::Save",
-      "ctrl->": "assistant::QuoteSelection",
-      "ctrl-<": "assistant::InsertIntoEditor",
-      "shift-enter": "assistant::Split",
-      "ctrl-r": "assistant::CycleMessageRole",
-      "enter": "assistant::ConfirmCommand",
       "alt-enter": "editor::Newline"
     }
   },
@@ -616,7 +589,6 @@
       // "ctrl-a": "editor::SelectAll", // conflicts with readline
       "ctrl-shift-v": "terminal::Paste",
       "shift-insert": "terminal::Paste",
-      "ctrl-enter": "assistant::InlineAssist",
       "ctrl-w": ["terminal::SendKeystroke", "ctrl-w"],
       "ctrl-e": ["terminal::SendKeystroke", "ctrl-e"],
       "up": ["terminal::SendKeystroke", "up"],

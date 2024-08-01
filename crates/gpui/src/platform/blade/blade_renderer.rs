@@ -772,9 +772,4 @@ impl BladeRenderer {
         self.wait_for_gpu();
         self.last_sync_point = Some(sync_point);
     }
-
-    /// Required to compile on macOS, but not currently supported.
-    pub fn fps(&self) -> f32 {
-        0.0
-    }
 }
