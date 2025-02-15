@@ -2,7 +2,6 @@
 pub mod test;
 
 mod socks;
-pub mod telemetry;
 pub mod user;
 pub mod zed_urls;
 
@@ -14,7 +13,6 @@ use async_tungstenite::tungstenite::{
     http::{HeaderValue, Request, StatusCode},
 };
 use chrono::{DateTime, Utc};
-use clock::SystemClock;
 use credentials_provider::CredentialsProvider;
 use futures::{
     channel::oneshot, future::BoxFuture, AsyncReadExt, FutureExt, SinkExt, Stream, StreamExt,
@@ -45,7 +43,6 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use telemetry::Telemetry;
 use thiserror::Error;
 use url::Url;
 use util::{ResultExt, TryFutureExt};
@@ -133,7 +130,6 @@ impl Settings for ProxySettings {
 }
 
 pub fn init_settings(cx: &mut App) {
-    TelemetrySettings::register(cx);
     ClientSettings::register(cx);
     ProxySettings::register(cx);
 }
@@ -185,7 +181,6 @@ pub struct Client {
     id: AtomicU64,
     peer: Arc<Peer>,
     http: Arc<HttpClientWithUrl>,
-    telemetry: Arc<Telemetry>,
     credentials_provider: ClientCredentialsProvider,
     state: RwLock<ClientState>,
     handler_set: parking_lot::Mutex<ProtoMessageHandlerSet>,
@@ -473,63 +468,14 @@ impl<T: 'static> Drop for PendingEntitySubscription<T> {
     }
 }
 
-#[derive(Copy, Clone)]
-pub struct TelemetrySettings {
-    pub diagnostics: bool,
-    pub metrics: bool,
-}
-
-/// Control what info is collected by Zed.
-#[derive(Default, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct TelemetrySettingsContent {
-    /// Send debug info like crash reports.
-    ///
-    /// Default: true
-    pub diagnostics: Option<bool>,
-    /// Send anonymized usage data like what languages you're using Zed with.
-    ///
-    /// Default: true
-    pub metrics: Option<bool>,
-}
-
-impl settings::Settings for TelemetrySettings {
-    const KEY: Option<&'static str> = Some("telemetry");
-
-    type FileContent = TelemetrySettingsContent;
-
-    fn load(sources: SettingsSources<Self::FileContent>, _: &mut App) -> Result<Self> {
-        Ok(Self {
-            diagnostics: sources
-                .user
-                .as_ref()
-                .or(sources.server.as_ref())
-                .and_then(|v| v.diagnostics)
-                .unwrap_or(
-                    sources
-                        .default
-                        .diagnostics
-                        .ok_or_else(Self::missing_default)?,
-                ),
-            metrics: sources
-                .user
-                .as_ref()
-                .or(sources.server.as_ref())
-                .and_then(|v| v.metrics)
-                .unwrap_or(sources.default.metrics.ok_or_else(Self::missing_default)?),
-        })
-    }
-}
-
 impl Client {
     pub fn new(
-        clock: Arc<dyn SystemClock>,
         http: Arc<HttpClientWithUrl>,
         cx: &mut App,
     ) -> Arc<Self> {
         Arc::new(Self {
             id: AtomicU64::new(0),
             peer: Peer::new(0),
-            telemetry: Telemetry::new(clock, http.clone(), cx),
             http,
             credentials_provider: ClientCredentialsProvider::new(cx),
             state: Default::default(),
@@ -545,13 +491,12 @@ impl Client {
     }
 
     pub fn production(cx: &mut App) -> Arc<Self> {
-        let clock = Arc::new(clock::RealSystemClock);
         let http = Arc::new(HttpClientWithUrl::new_uri(
             cx.http_client(),
             &ClientSettings::get_global(cx).server_url,
             cx.http_client().proxy().cloned(),
         ));
-        Self::new(clock, http, cx)
+        Self::new(http, cx)
     }
 
     pub fn id(&self) -> u64 {
@@ -668,7 +613,6 @@ impl Client {
                 }));
             }
             Status::SignedOut | Status::UpgradeRequired => {
-                self.telemetry.set_authenticated_user_info(None, false);
                 state._reconnect_task.take();
             }
             _ => {}
@@ -1088,8 +1032,6 @@ impl Client {
         let proxy = http.proxy().cloned();
         let credentials = credentials.clone();
         let rpc_url = self.rpc_url(http, release_channel);
-        let system_id = self.telemetry.system_id();
-        let metrics_id = self.telemetry.metrics_id();
         cx.background_spawn(async move {
             use HttpOrHttps::*;
 
@@ -1141,12 +1083,6 @@ impl Client {
                 "x-zed-release-channel",
                 HeaderValue::from_str(release_channel.map(|r| r.dev_name()).unwrap_or("unknown"))?,
             );
-            if let Some(system_id) = system_id {
-                request_headers.insert("x-zed-system-id", HeaderValue::from_str(&system_id)?);
-            }
-            if let Some(metrics_id) = metrics_id {
-                request_headers.insert("x-zed-metrics-id", HeaderValue::from_str(&metrics_id)?);
-            }
 
             match url_scheme {
                 Https => {
@@ -1574,10 +1510,6 @@ impl Client {
                 .log_err();
         }
     }
-
-    pub fn telemetry(&self) -> &Arc<Telemetry> {
-        &self.telemetry
-    }
 }
 
 impl ProtoClient for Client {
@@ -1644,7 +1576,6 @@ mod tests {
     use super::*;
     use crate::test::FakeServer;
 
-    use clock::FakeSystemClock;
     use gpui::{BackgroundExecutor, TestAppContext};
     use http_client::FakeHttpClient;
     use parking_lot::Mutex;
@@ -1658,7 +1589,6 @@ mod tests {
         let user_id = 5;
         let client = cx.update(|cx| {
             Client::new(
-                Arc::new(FakeSystemClock::new()),
                 FakeHttpClient::with_404_response(),
                 cx,
             )
@@ -1699,7 +1629,6 @@ mod tests {
         let user_id = 5;
         let client = cx.update(|cx| {
             Client::new(
-                Arc::new(FakeSystemClock::new()),
                 FakeHttpClient::with_404_response(),
                 cx,
             )
@@ -1778,7 +1707,6 @@ mod tests {
         let dropped_auth_count = Arc::new(Mutex::new(0));
         let client = cx.update(|cx| {
             Client::new(
-                Arc::new(FakeSystemClock::new()),
                 FakeHttpClient::with_404_response(),
                 cx,
             )
@@ -1821,7 +1749,6 @@ mod tests {
         let user_id = 5;
         let client = cx.update(|cx| {
             Client::new(
-                Arc::new(FakeSystemClock::new()),
                 FakeHttpClient::with_404_response(),
                 cx,
             )
@@ -1881,7 +1808,6 @@ mod tests {
         let user_id = 5;
         let client = cx.update(|cx| {
             Client::new(
-                Arc::new(FakeSystemClock::new()),
                 FakeHttpClient::with_404_response(),
                 cx,
             )
@@ -1916,7 +1842,6 @@ mod tests {
         let user_id = 5;
         let client = cx.update(|cx| {
             Client::new(
-                Arc::new(FakeSystemClock::new()),
                 FakeHttpClient::with_404_response(),
                 cx,
             )
