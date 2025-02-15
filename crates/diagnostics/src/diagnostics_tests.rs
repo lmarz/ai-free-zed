@@ -1,9 +1,9 @@
 use super::*;
 use collections::{HashMap, HashSet};
 use editor::{
-    DisplayPoint, InlayId,
+    DisplayPoint,
     actions::{GoToDiagnostic, GoToPreviousDiagnostic, MoveToBeginning},
-    display_map::{DisplayRow, Inlay},
+    display_map::DisplayRow,
     test::{editor_content_with_blocks, editor_test_context::EditorTestContext},
 };
 use gpui::{TestAppContext, VisualTestContext};
@@ -814,7 +814,6 @@ async fn test_random_diagnostics_with_inlays(cx: &mut TestAppContext, mut rng: S
     let mut updated_language_servers = HashSet::default();
     let mut current_diagnostics: HashMap<(PathBuf, LanguageServerId), Vec<lsp::Diagnostic>> =
         Default::default();
-    let mut next_inlay_id = 0;
 
     for _ in 0..operations {
         match rng.gen_range(0..100) {
@@ -830,31 +829,6 @@ async fn test_random_diagnostics_with_inlays(cx: &mut TestAppContext, mut rng: S
                     cx.run_until_parked();
                 }
             }
-
-            21..=50 => mutated_diagnostics.update_in(cx, |diagnostics, window, cx| {
-                diagnostics.editor.update(cx, |editor, cx| {
-                    let snapshot = editor.snapshot(window, cx);
-                    if snapshot.buffer_snapshot.len() > 0 {
-                        let position = rng.gen_range(0..snapshot.buffer_snapshot.len());
-                        let position = snapshot.buffer_snapshot.clip_offset(position, Bias::Left);
-                        log::info!(
-                            "adding inlay at {position}/{}: {:?}",
-                            snapshot.buffer_snapshot.len(),
-                            snapshot.buffer_snapshot.text(),
-                        );
-
-                        editor.splice_inlays(
-                            &[],
-                            vec![Inlay {
-                                id: InlayId::InlineCompletion(post_inc(&mut next_inlay_id)),
-                                position: snapshot.buffer_snapshot.anchor_before(position),
-                                text: Rope::from(format!("Test inlay {next_inlay_id}")),
-                            }],
-                            cx,
-                        );
-                    }
-                });
-            }),
 
             // language server updates diagnostics
             _ => {

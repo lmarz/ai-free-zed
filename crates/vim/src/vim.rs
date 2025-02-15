@@ -681,22 +681,6 @@ impl Vim {
             Vim::action(editor, cx, |vim, _: &Tab, window, cx| {
                 vim.input_ignored(" ".into(), window, cx)
             });
-            Vim::action(
-                editor,
-                cx,
-                |vim, action: &editor::AcceptEditPrediction, window, cx| {
-                    vim.update_editor(window, cx, |_, editor, window, cx| {
-                        editor.accept_edit_prediction(action, window, cx);
-                    });
-                    // In non-insertion modes, predictions will be hidden and instead a jump will be
-                    // displayed (and performed by `accept_edit_prediction`). This switches to
-                    // insert mode so that the prediction is displayed after the jump.
-                    match vim.mode {
-                        Mode::Replace => {}
-                        _ => vim.switch_mode(Mode::Insert, true, window, cx),
-                    };
-                },
-            );
             Vim::action(editor, cx, |vim, _: &Enter, window, cx| {
                 vim.input_ignored("\n".into(), window, cx)
             });
@@ -1652,34 +1636,18 @@ impl Vim {
                 if self.mode == Mode::Replace {
                     self.multi_replace(text, window, cx)
                 }
-
-                if self.mode == Mode::Normal {
-                    self.update_editor(window, cx, |_, editor, window, cx| {
-                        editor.accept_edit_prediction(
-                            &editor::actions::AcceptEditPrediction {},
-                            window,
-                            cx,
-                        );
-                    });
-                }
             }
         }
     }
 
     fn sync_vim_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.update_editor(window, cx, |vim, editor, window, cx| {
+        self.update_editor(window, cx, |vim, editor, _, cx| {
             editor.set_cursor_shape(vim.cursor_shape(cx), cx);
             editor.set_clip_at_line_ends(vim.clip_at_line_ends(), cx);
             editor.set_collapse_matches(true);
             editor.set_input_enabled(vim.editor_input_enabled());
             editor.set_autoindent(vim.should_autoindent());
             editor.selections.line_mode = matches!(vim.mode, Mode::VisualLine);
-
-            let hide_inline_completions = match vim.mode {
-                Mode::Insert | Mode::Replace => false,
-                _ => true,
-            };
-            editor.set_inline_completions_hidden_for_vim_mode(hide_inline_completions, window, cx);
         });
         cx.notify()
     }

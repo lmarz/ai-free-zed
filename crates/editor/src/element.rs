@@ -2,12 +2,12 @@ use crate::{
     ActiveDiagnostic, BlockId, COLUMNAR_SELECTION_MODIFIERS, CURSORS_VISIBLE_FOR,
     ChunkRendererContext, ChunkReplacement, ContextMenuPlacement, CursorShape, CustomBlockId,
     DisplayDiffHunk, DisplayPoint, DisplayRow, DocumentHighlightRead, DocumentHighlightWrite,
-    EditDisplayMode, Editor, EditorMode, EditorSettings, EditorSnapshot, EditorStyle,
-    FILE_HEADER_HEIGHT, FocusedBlock, GutterDimensions, HalfPageDown, HalfPageUp, HandleInput,
-    HoveredCursor, InlayHintRefreshReason, InlineCompletion, JumpData, LineDown, LineHighlight,
-    LineUp, MAX_LINE_LEN, MIN_LINE_NUMBER_DIGITS, MULTI_BUFFER_EXCERPT_HEADER_HEIGHT, OpenExcerpts,
-    PageDown, PageUp, Point, RowExt, RowRangeExt, SelectPhase, SelectedTextHighlight, Selection,
-    SoftWrap, StickyHeaderExcerpt, ToPoint, ToggleFold,
+    Editor, EditorMode, EditorSettings, EditorSnapshot, EditorStyle, FILE_HEADER_HEIGHT,
+    FocusedBlock, GutterDimensions, HalfPageDown, HalfPageUp, HandleInput, HoveredCursor,
+    InlayHintRefreshReason, JumpData, LineDown, LineHighlight, LineUp, MAX_LINE_LEN,
+    MIN_LINE_NUMBER_DIGITS, MULTI_BUFFER_EXCERPT_HEADER_HEIGHT, OpenExcerpts, PageDown, PageUp,
+    Point, RowExt, RowRangeExt, SelectPhase, SelectedTextHighlight, Selection, SoftWrap,
+    StickyHeaderExcerpt, ToPoint, ToggleFold,
     code_context_menus::{CodeActionsMenu, MENU_ASIDE_MAX_WIDTH, MENU_ASIDE_MIN_WIDTH, MENU_GAP},
     display_map::{
         Block, BlockContext, BlockStyle, DisplaySnapshot, FoldId, HighlightedChunk, ToDisplayPoint,
@@ -36,12 +36,11 @@ use gpui::{
     Action, Along, AnyElement, App, AvailableSpace, Axis as ScrollbarAxis, BorderStyle, Bounds,
     ClickEvent, ContentMask, Context, Corner, Corners, CursorStyle, DispatchPhase, Edges, Element,
     ElementInputHandler, Entity, Focusable as _, FontId, GlobalElementId, Hitbox, Hsla,
-    InteractiveElement, IntoElement, Keystroke, Length, ModifiersChangedEvent, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, ParentElement, Pixels, ScrollDelta,
-    ScrollWheelEvent, ShapedLine, SharedString, Size, StatefulInteractiveElement, Style, Styled,
-    TextRun, TextStyleRefinement, WeakEntity, Window, anchored, deferred, div, fill,
-    linear_color_stop, linear_gradient, outline, point, px, quad, relative, size, solid_background,
-    transparent_black,
+    InteractiveElement, IntoElement, Length, ModifiersChangedEvent, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, PaintQuad, ParentElement, Pixels, ScrollDelta, ScrollWheelEvent,
+    ShapedLine, SharedString, Size, StatefulInteractiveElement, Style, Styled, TextRun,
+    TextStyleRefinement, WeakEntity, Window, anchored, deferred, div, fill, linear_color_stop,
+    linear_gradient, outline, point, px, quad, relative, size, solid_background, transparent_black,
 };
 use itertools::Itertools;
 use language::language_settings::{
@@ -415,7 +414,6 @@ impl EditorElement {
         register_action(editor, window, Editor::toggle_relative_line_numbers);
         register_action(editor, window, Editor::toggle_indent_guides);
         register_action(editor, window, Editor::toggle_inlay_hints);
-        register_action(editor, window, Editor::toggle_edit_predictions);
         register_action(editor, window, Editor::toggle_inline_diagnostics);
         register_action(editor, window, hover_popover::hover);
         register_action(editor, window, Editor::reveal_in_finder);
@@ -517,9 +515,6 @@ impl EditorElement {
             }
         });
         register_action(editor, window, Editor::show_signature_help);
-        register_action(editor, window, Editor::next_edit_prediction);
-        register_action(editor, window, Editor::previous_edit_prediction);
-        register_action(editor, window, Editor::show_inline_completion);
         register_action(editor, window, Editor::context_menu_first);
         register_action(editor, window, Editor::context_menu_prev);
         register_action(editor, window, Editor::context_menu_next);
@@ -527,8 +522,6 @@ impl EditorElement {
         register_action(editor, window, Editor::display_cursor_names);
         register_action(editor, window, Editor::unique_lines_case_insensitive);
         register_action(editor, window, Editor::unique_lines_case_sensitive);
-        register_action(editor, window, Editor::accept_partial_inline_completion);
-        register_action(editor, window, Editor::accept_edit_prediction);
         register_action(editor, window, Editor::restore_file);
         register_action(editor, window, Editor::git_restore);
         register_action(editor, window, Editor::apply_all_diff_hunks);
@@ -1594,7 +1587,6 @@ impl EditorElement {
         row_block_types: &HashMap<DisplayRow, bool>,
         content_origin: gpui::Point<Pixels>,
         scroll_pixel_position: gpui::Point<Pixels>,
-        inline_completion_popover_origin: Option<gpui::Point<Pixels>>,
         start_row: DisplayRow,
         end_row: DisplayRow,
         line_height: Pixels,
@@ -1704,16 +1696,7 @@ impl EditorElement {
                 cmp::max(padded_line, min_start)
             };
 
-            let behind_inline_completion_popover = inline_completion_popover_origin
-                .as_ref()
-                .map_or(false, |inline_completion_popover_origin| {
-                    (pos_y..pos_y + line_height).contains(&inline_completion_popover_origin.y)
-                });
-            let opacity = if behind_inline_completion_popover {
-                0.5
-            } else {
-                1.0
-            };
+            let opacity = 1.0;
 
             let mut element = h_flex()
                 .id(("diagnostic", row.0))
@@ -1762,20 +1745,7 @@ impl EditorElement {
         let editor = self.editor.read(cx);
         let blame = editor.blame.clone()?;
         let padding = {
-            const INLINE_BLAME_PADDING_EM_WIDTHS: f32 = 6.;
-            const INLINE_ACCEPT_SUGGESTION_EM_WIDTHS: f32 = 14.;
-
-            let mut padding = INLINE_BLAME_PADDING_EM_WIDTHS;
-
-            if let Some(inline_completion) = editor.active_inline_completion.as_ref() {
-                match &inline_completion.completion {
-                    InlineCompletion::Edit {
-                        display_mode: EditDisplayMode::TabAccept,
-                        ..
-                    } => padding += INLINE_ACCEPT_SUGGESTION_EM_WIDTHS,
-                    _ => {}
-                }
-            }
+            let padding = INLINE_BLAME_PADDING_EM_WIDTHS;
 
             padding * em_width
         };
@@ -3330,28 +3300,18 @@ impl EditorElement {
         scroll_pixel_position: gpui::Point<Pixels>,
         line_layouts: &[LineWithInvisibles],
         cursor: DisplayPoint,
-        cursor_point: Point,
-        style: &EditorStyle,
         window: &mut Window,
         cx: &mut App,
     ) {
         let mut min_menu_height = Pixels::ZERO;
         let mut max_menu_height = Pixels::ZERO;
-        let mut height_above_menu = Pixels::ZERO;
+        let height_above_menu = Pixels::ZERO;
         let height_below_menu = Pixels::ZERO;
-        let mut edit_prediction_popover_visible = false;
         let mut context_menu_visible = false;
         let context_menu_placement;
 
         {
             let editor = self.editor.read(cx);
-            if editor
-                .edit_prediction_visible_in_cursor_popover(editor.has_active_inline_completion())
-            {
-                height_above_menu +=
-                    editor.edit_prediction_cursor_popover_height() + POPOVER_Y_PADDING;
-                edit_prediction_popover_visible = true;
-            }
 
             if editor.context_menu_visible() {
                 if let Some(crate::ContextMenuOrigin::Cursor) = editor.context_menu_origin() {
@@ -3373,7 +3333,7 @@ impl EditorElement {
                 .and_then(|options| options.placement.clone());
         }
 
-        let visible = edit_prediction_popover_visible || context_menu_visible;
+        let visible = context_menu_visible;
         if !visible {
             return;
         }
@@ -3410,7 +3370,7 @@ impl EditorElement {
             viewport_bounds,
             window,
             cx,
-            |height, max_width_for_stable_x, y_flipped, window, cx| {
+            |height, _, y_flipped, window, cx| {
                 // First layout the menu to get its size - others can be at least this wide.
                 let context_menu = if context_menu_visible {
                     let menu_height = if y_flipped {
@@ -3426,34 +3386,8 @@ impl EditorElement {
                 } else {
                     None
                 };
-                let min_width = context_menu
-                    .as_ref()
-                    .map_or(px(0.), |(_, _, size)| size.width);
-                let max_width = max_width_for_stable_x.max(
-                    context_menu
-                        .as_ref()
-                        .map_or(px(0.), |(_, _, size)| size.width),
-                );
 
-                let edit_prediction = if edit_prediction_popover_visible {
-                    self.editor.update(cx, move |editor, cx| {
-                        let accept_binding = editor.accept_edit_prediction_keybind(window, cx);
-                        let mut element = editor.render_edit_prediction_cursor_popover(
-                            min_width,
-                            max_width,
-                            cursor_point,
-                            style,
-                            accept_binding.keystroke(),
-                            window,
-                            cx,
-                        )?;
-                        let size = element.layout_as_root(AvailableSpace::min_size(), window, cx);
-                        Some((CursorPopoverType::EditPrediction, element, size))
-                    })
-                } else {
-                    None
-                };
-                vec![edit_prediction, context_menu]
+                vec![None, context_menu]
                     .into_iter()
                     .flatten()
                     .collect::<Vec<_>>()
@@ -5422,17 +5356,6 @@ impl EditorElement {
         }
     }
 
-    fn paint_inline_completion_popover(
-        &mut self,
-        layout: &mut EditorLayout,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        if let Some(inline_completion_popover) = layout.inline_completion_popover.as_mut() {
-            inline_completion_popover.paint(window, cx);
-        }
-    }
-
     fn paint_mouse_context_menu(
         &mut self,
         layout: &mut EditorLayout,
@@ -5745,21 +5668,6 @@ fn header_jump_data(
         anchor: jump_anchor,
         position: jump_position,
         line_offset_from_top,
-    }
-}
-
-pub struct AcceptEditPredictionBinding(pub(crate) Option<gpui::KeyBinding>);
-
-impl AcceptEditPredictionBinding {
-    pub fn keystroke(&self) -> Option<&Keystroke> {
-        if let Some(binding) = self.0.as_ref() {
-            match &binding.keystrokes() {
-                [keystroke] => Some(keystroke),
-                _ => None,
-            }
-        } else {
-            None
-        }
     }
 }
 
@@ -7155,35 +7063,12 @@ impl Element for EditorElement {
                             )
                         });
 
-                    let (inline_completion_popover, inline_completion_popover_origin) = self
-                        .editor
-                        .update(cx, |editor, cx| {
-                            editor.render_edit_prediction_popover(
-                                &text_hitbox.bounds,
-                                content_origin,
-                                &snapshot,
-                                start_row..end_row,
-                                scroll_position.y,
-                                scroll_position.y + height_in_lines,
-                                &line_layouts,
-                                line_height,
-                                scroll_pixel_position,
-                                newest_selection_head,
-                                editor_width,
-                                &style,
-                                window,
-                                cx,
-                            )
-                        })
-                        .unzip();
-
                     let mut inline_diagnostics = self.layout_inline_diagnostics(
                         &line_layouts,
                         &crease_trailers,
                         &row_block_types,
                         content_origin,
                         scroll_pixel_position,
-                        inline_completion_popover_origin,
                         start_row,
                         end_row,
                         line_height,
@@ -7315,9 +7200,6 @@ impl Element for EditorElement {
 
                     let mut code_actions_indicator = None;
                     if let Some(newest_selection_head) = newest_selection_head {
-                        let newest_selection_point =
-                            newest_selection_head.to_point(&snapshot.display_snapshot);
-
                         if (start_row..end_row).contains(&newest_selection_head.row()) {
                             self.layout_cursor_popovers(
                                 line_height,
@@ -7327,8 +7209,6 @@ impl Element for EditorElement {
                                 scroll_pixel_position,
                                 &line_layouts,
                                 newest_selection_head,
-                                newest_selection_point,
-                                &style,
                                 window,
                                 cx,
                             );
@@ -7521,7 +7401,6 @@ impl Element for EditorElement {
 
                     let position_map = Rc::new(PositionMap {
                         size: bounds.size,
-                        visible_row_range,
                         scroll_pixel_position,
                         scroll_max,
                         line_layouts,
@@ -7580,7 +7459,6 @@ impl Element for EditorElement {
                         cursors,
                         visible_cursors,
                         selections,
-                        inline_completion_popover,
                         diff_hunk_controls,
                         mouse_context_menu,
                         test_indicators,
@@ -7659,7 +7537,6 @@ impl Element for EditorElement {
                     });
 
                     self.paint_scrollbars(layout, window, cx);
-                    self.paint_inline_completion_popover(layout, window, cx);
                     self.paint_mouse_context_menu(layout, window, cx);
                 });
             })
@@ -7763,7 +7640,6 @@ pub struct EditorLayout {
     expand_toggles: Vec<Option<(AnyElement, gpui::Point<Pixels>)>>,
     diff_hunk_controls: Vec<AnyElement>,
     crease_trailers: Vec<Option<CreaseTrailerLayout>>,
-    inline_completion_popover: Option<AnyElement>,
     mouse_context_menu: Option<AnyElement>,
     tab_invisible: ShapedLine,
     space_invisible: ShapedLine,
@@ -8067,7 +7943,6 @@ pub(crate) struct PositionMap {
     pub scroll_max: gpui::Point<f32>,
     pub em_width: Pixels,
     pub em_advance: Pixels,
-    pub visible_row_range: Range<DisplayRow>,
     pub line_layouts: Vec<LineWithInvisibles>,
     pub snapshot: EditorSnapshot,
     pub text_hitbox: Hitbox,
@@ -8447,7 +8322,6 @@ impl HighlightedRange {
 
 enum CursorPopoverType {
     CodeContextMenu,
-    EditPrediction,
 }
 
 pub fn scale_vertical_mouse_autoscroll_delta(delta: Pixels) -> f32 {
