@@ -176,12 +176,12 @@ impl Vim {
         self.switch_mode(Mode::Normal, false, window, cx);
     }
 
-    pub fn clear_exchange(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn clear_exchange(&mut self, cx: &mut Context<Self>) {
         self.stop_recording(cx);
         self.update_editor(cx, |_, editor, cx| {
             editor.clear_background_highlights::<VimExchange>(cx);
         });
-        self.clear_operator(window, cx);
+        self.clear_operator(cx);
     }
 
     pub fn exchange_motion(

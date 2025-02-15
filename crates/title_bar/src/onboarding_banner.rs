@@ -48,11 +48,6 @@ impl OnboardingBanner {
         }
     }
 
-    pub fn visible_when(mut self, predicate: impl Fn(&mut App) -> bool + 'static) -> Self {
-        self.visible_when = Some(Box::new(predicate));
-        self
-    }
-
     fn should_show(&self, cx: &mut App) -> bool {
         !self.dismissed && self.visible_when.as_ref().map_or(true, |f| f(cx))
     }
@@ -141,7 +136,6 @@ impl Render for OnboardingBanner {
                             ),
                     )
                     .on_click(cx.listener(|this, _, window, cx| {
-                        telemetry::event!("Banner Clicked", source = this.source);
                         this.dismiss(cx);
                         window.dispatch_action(this.details.action.boxed_clone(), cx)
                     })),
@@ -150,10 +144,7 @@ impl Render for OnboardingBanner {
                 div().border_l_1().border_color(border_color).child(
                     IconButton::new("close", IconName::Close)
                         .icon_size(IconSize::Indicator)
-                        .on_click(cx.listener(|this, _, _window, cx| {
-                            telemetry::event!("Banner Dismissed", source = this.source);
-                            this.dismiss(cx)
-                        }))
+                        .on_click(cx.listener(|this, _, _window, cx| this.dismiss(cx)))
                         .tooltip(|window, cx| {
                             Tooltip::with_meta(
                                 "Close Announcement Banner",

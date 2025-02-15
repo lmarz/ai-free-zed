@@ -1,4 +1,3 @@
-use auto_update::{AutoUpdateStatus, AutoUpdater, DismissErrorMessage, VersionCheckType};
 use editor::Editor;
 use extension_host::{ExtensionOperation, ExtensionStore};
 use futures::StreamExt;
@@ -37,7 +36,8 @@ actions!(
     activity_indicator,
     [
         /// Displays error messages from language servers in the status bar.
-        ShowErrorMessage
+        ShowErrorMessage,
+        DismissErrorMessage
     ]
 );
 
@@ -51,7 +51,6 @@ pub enum Event {
 pub struct ActivityIndicator {
     statuses: Vec<ServerStatus>,
     project: Entity<Project>,
-    auto_updater: Option<Entity<AutoUpdater>>,
     context_menu_handle: PopoverMenuHandle<ContextMenu>,
 }
 
@@ -83,7 +82,6 @@ impl ActivityIndicator {
         cx: &mut Context<Workspace>,
     ) -> Entity<ActivityIndicator> {
         let project = workspace.project().clone();
-        let auto_updater = AutoUpdater::get(cx);
         let workspace_handle = cx.entity();
         let this = cx.new(|cx| {
             let mut status_events = languages.language_server_binary_statuses();
@@ -210,14 +208,9 @@ impl ActivityIndicator {
             )
             .detach();
 
-            if let Some(auto_updater) = auto_updater.as_ref() {
-                cx.observe(auto_updater, |_, _, cx| cx.notify()).detach();
-            }
-
             Self {
                 statuses: Vec::new(),
                 project: project.clone(),
-                auto_updater,
                 context_menu_handle: Default::default(),
             }
         });
@@ -300,15 +293,6 @@ impl ActivityIndicator {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let error_dismissed = if let Some(updater) = &self.auto_updater {
-            updater.update(cx, |updater, cx| updater.dismiss_error(cx))
-        } else {
-            false
-        };
-        if error_dismissed {
-            return;
-        }
-
         self.project.update(cx, |project, cx| {
             if project.last_formatting_failure(cx).is_some() {
                 project.reset_last_formatting_failure(cx);
@@ -658,119 +642,46 @@ impl ActivityIndicator {
             });
         }
 
-        // Show any application auto-update info.
-        self.auto_updater
-            .as_ref()
-            .and_then(|updater| match &updater.read(cx).status() {
-                AutoUpdateStatus::Checking => Some(Content {
-                    icon: Some(
-                        Icon::new(IconName::Download)
-                            .size(IconSize::Small)
-                            .into_any_element(),
-                    ),
-                    message: "Checking for Zed updates…".to_string(),
-                    on_click: Some(Arc::new(|this, window, cx| {
-                        this.dismiss_error_message(&DismissErrorMessage, window, cx)
-                    })),
-                    tooltip_message: None,
-                }),
-                AutoUpdateStatus::Downloading { version } => Some(Content {
-                    icon: Some(
-                        Icon::new(IconName::Download)
-                            .size(IconSize::Small)
-                            .into_any_element(),
-                    ),
-                    message: "Downloading Zed update…".to_string(),
-                    on_click: Some(Arc::new(|this, window, cx| {
-                        this.dismiss_error_message(&DismissErrorMessage, window, cx)
-                    })),
-                    tooltip_message: Some(Self::version_tooltip_message(version)),
-                }),
-                AutoUpdateStatus::Installing { version } => Some(Content {
-                    icon: Some(
-                        Icon::new(IconName::Download)
-                            .size(IconSize::Small)
-                            .into_any_element(),
-                    ),
-                    message: "Installing Zed update…".to_string(),
-                    on_click: Some(Arc::new(|this, window, cx| {
-                        this.dismiss_error_message(&DismissErrorMessage, window, cx)
-                    })),
-                    tooltip_message: Some(Self::version_tooltip_message(version)),
-                }),
-                AutoUpdateStatus::Updated { version } => Some(Content {
-                    icon: None,
-                    message: "Click to restart and update Zed".to_string(),
-                    on_click: Some(Arc::new(move |_, _, cx| workspace::reload(cx))),
-                    tooltip_message: Some(Self::version_tooltip_message(version)),
-                }),
-                AutoUpdateStatus::Errored => Some(Content {
-                    icon: Some(
-                        Icon::new(IconName::Warning)
-                            .size(IconSize::Small)
-                            .into_any_element(),
-                    ),
-                    message: "Auto update failed".to_string(),
-                    on_click: Some(Arc::new(|this, window, cx| {
-                        this.dismiss_error_message(&DismissErrorMessage, window, cx)
-                    })),
-                    tooltip_message: None,
-                }),
-                AutoUpdateStatus::Idle => None,
-            })
-            .or_else(|| {
-                if let Some(extension_store) =
-                    ExtensionStore::try_global(cx).map(|extension_store| extension_store.read(cx))
-                    && let Some((extension_id, operation)) =
-                        extension_store.outstanding_operations().iter().next()
-                {
-                    let (message, icon, rotate) = match operation {
-                        ExtensionOperation::Install => (
-                            format!("Installing {extension_id} extension…"),
-                            IconName::LoadCircle,
-                            true,
-                        ),
-                        ExtensionOperation::Upgrade => (
-                            format!("Updating {extension_id} extension…"),
-                            IconName::Download,
-                            false,
-                        ),
-                        ExtensionOperation::Remove => (
-                            format!("Removing {extension_id} extension…"),
-                            IconName::LoadCircle,
-                            true,
-                        ),
-                    };
+        if let Some(extension_store) =
+            ExtensionStore::try_global(cx).map(|extension_store| extension_store.read(cx))
+            && let Some((extension_id, operation)) =
+                extension_store.outstanding_operations().iter().next()
+        {
+            let (message, icon, rotate) = match operation {
+                ExtensionOperation::Install => (
+                    format!("Installing {extension_id} extension…"),
+                    IconName::LoadCircle,
+                    true,
+                ),
+                ExtensionOperation::Upgrade => (
+                    format!("Updating {extension_id} extension…"),
+                    IconName::Download,
+                    false,
+                ),
+                ExtensionOperation::Remove => (
+                    format!("Removing {extension_id} extension…"),
+                    IconName::LoadCircle,
+                    true,
+                ),
+            };
 
-                    Some(Content {
-                        icon: Some(Icon::new(icon).size(IconSize::Small).map(|this| {
-                            if rotate {
-                                this.with_rotate_animation(3).into_any_element()
-                            } else {
-                                this.into_any_element()
-                            }
-                        })),
-                        message,
-                        on_click: Some(Arc::new(|this, window, cx| {
-                            this.dismiss_error_message(&Default::default(), window, cx)
-                        })),
-                        tooltip_message: None,
-                    })
-                } else {
-                    None
-                }
+            Some(Content {
+                icon: Some(Icon::new(icon).size(IconSize::Small).map(|this| {
+                    if rotate {
+                        this.with_rotate_animation(3).into_any_element()
+                    } else {
+                        this.into_any_element()
+                    }
+                })),
+                message,
+                on_click: Some(Arc::new(|this, window, cx| {
+                    this.dismiss_error_message(&Default::default(), window, cx)
+                })),
+                tooltip_message: None,
             })
-    }
-
-    fn version_tooltip_message(version: &VersionCheckType) -> String {
-        format!("Version: {}", {
-            match version {
-                auto_update::VersionCheckType::Sha(sha) => format!("{}…", sha.short()),
-                auto_update::VersionCheckType::Semantic(semantic_version) => {
-                    semantic_version.to_string()
-                }
-            }
-        })
+        } else {
+            None
+        }
     }
 
     fn toggle_language_server_work_context_menu(
@@ -902,28 +813,5 @@ impl StatusItemView for ActivityIndicator {
         _window: &mut Window,
         _: &mut Context<Self>,
     ) {
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use gpui::SemanticVersion;
-    use release_channel::AppCommitSha;
-
-    use super::*;
-
-    #[test]
-    fn test_version_tooltip_message() {
-        let message = ActivityIndicator::version_tooltip_message(&VersionCheckType::Semantic(
-            SemanticVersion::new(1, 0, 0),
-        ));
-
-        assert_eq!(message, "Version: 1.0.0");
-
-        let message = ActivityIndicator::version_tooltip_message(&VersionCheckType::Sha(
-            AppCommitSha::new("14d9a4189f058d8736339b06ff2340101eaea5af".to_string()),
-        ));
-
-        assert_eq!(message, "Version: 14d9a41…");
     }
 }

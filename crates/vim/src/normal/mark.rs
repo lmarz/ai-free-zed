@@ -28,7 +28,7 @@ impl Vim {
                 .collect::<Vec<_>>();
             vim.set_mark(text.to_string(), anchors, editor.buffer(), window, cx);
         });
-        self.clear_operator(window, cx);
+        self.clear_operator(cx);
     }
 
     // When handling an action, you must create visual marks if you will switch to normal
@@ -186,7 +186,7 @@ impl Vim {
         cx: &mut Context<Self>,
     ) {
         if should_pop_operator {
-            self.pop_operator(window, cx);
+            self.pop_operator(cx);
         }
         let mark = self
             .update_editor(cx, |vim, editor, cx| {

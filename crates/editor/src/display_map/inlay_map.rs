@@ -81,15 +81,6 @@ impl Inlay {
         }
     }
 
-    pub fn edit_prediction<T: Into<Rope>>(id: usize, position: Anchor, text: T) -> Self {
-        Self {
-            id: InlayId::EditPrediction(id),
-            position,
-            text: text.into(),
-            color: None,
-        }
-    }
-
     pub fn debugger<T: Into<Rope>>(id: usize, position: Anchor, text: T) -> Self {
         Self {
             id: InlayId::DebuggerValue(id),
@@ -340,13 +331,6 @@ impl<'a> Iterator for InlayChunks<'a> {
 
                 let mut renderer = None;
                 let mut highlight_style = match inlay.id {
-                    InlayId::EditPrediction(_) => self.highlight_styles.edit_prediction.map(|s| {
-                        if inlay.text.chars().all(|c| c.is_whitespace()) {
-                            s.whitespace
-                        } else {
-                            s.insertion
-                        }
-                    }),
                     InlayId::Hint(_) => self.highlight_styles.inlay_hint,
                     InlayId::DebuggerValue(_) => self.highlight_styles.inlay_hint,
                     InlayId::Color(_) => {
@@ -719,7 +703,7 @@ impl InlayMap {
         let mut to_remove = Vec::new();
         let mut to_insert = Vec::new();
         let snapshot = &mut self.snapshot;
-        for i in 0..rng.gen_range(1..=5) {
+        for _ in 0..rng.gen_range(1..=5) {
             if self.inlays.is_empty() || rng.r#gen() {
                 let position = snapshot.buffer.random_byte_range(0, rng).start;
                 let bias = if rng.r#gen() { Bias::Left } else { Bias::Right };
@@ -733,19 +717,11 @@ impl InlayMap {
                     .take(len)
                     .collect::<String>();
 
-                let next_inlay = if i % 2 == 0 {
-                    Inlay::mock_hint(
-                        post_inc(next_inlay_id),
-                        snapshot.buffer.anchor_at(position, bias),
-                        &text,
-                    )
-                } else {
-                    Inlay::edit_prediction(
-                        post_inc(next_inlay_id),
-                        snapshot.buffer.anchor_at(position, bias),
-                        &text,
-                    )
-                };
+                let next_inlay = Inlay::mock_hint(
+                    post_inc(next_inlay_id),
+                    snapshot.buffer.anchor_at(position, bias),
+                    &text,
+                );
                 let inlay_id = next_inlay.id;
                 log::info!(
                     "creating inlay {inlay_id:?} at buffer offset {position} with bias {bias:?} and text {text:?}"
@@ -1414,18 +1390,11 @@ mod tests {
 
         let (inlay_snapshot, _) = inlay_map.splice(
             &[],
-            vec![
-                Inlay::mock_hint(
-                    post_inc(&mut next_inlay_id),
-                    buffer.read(cx).snapshot(cx).anchor_before(3),
-                    "|123|",
-                ),
-                Inlay::edit_prediction(
-                    post_inc(&mut next_inlay_id),
-                    buffer.read(cx).snapshot(cx).anchor_after(3),
-                    "|456|",
-                ),
-            ],
+            vec![Inlay::mock_hint(
+                post_inc(&mut next_inlay_id),
+                buffer.read(cx).snapshot(cx).anchor_before(3),
+                "|123|",
+            )],
         );
         assert_eq!(inlay_snapshot.text(), "abx|123||456|yDzefghi");
 
@@ -1639,11 +1608,6 @@ mod tests {
                     post_inc(&mut next_inlay_id),
                     buffer.read(cx).snapshot(cx).anchor_before(4),
                     "|456|",
-                ),
-                Inlay::edit_prediction(
-                    post_inc(&mut next_inlay_id),
-                    buffer.read(cx).snapshot(cx).anchor_before(7),
-                    "\n|567|\n",
                 ),
             ],
         );

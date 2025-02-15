@@ -50,7 +50,7 @@ impl Vim {
     ) {
         if self.active_operator().is_some() {
             self.operator_stack.clear();
-            self.sync_vim_settings(window, cx);
+            self.sync_vim_settings(cx);
             return;
         }
         self.stop_recording_immediately(action.boxed_clone(), cx);

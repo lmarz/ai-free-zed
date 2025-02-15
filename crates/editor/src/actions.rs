@@ -1,6 +1,6 @@
 //! This module contains all actions supported by [`Editor`].
 use super::*;
-use gpui::{Action, actions};
+use gpui::{actions, Action};
 use project::project_settings::GoToDiagnosticSeverityFilter;
 use schemars::JsonSchema;
 use util::serde::default_true;
@@ -323,12 +323,6 @@ actions!(
 actions!(
     editor,
     [
-        /// Accepts the full edit prediction.
-        AcceptEditPrediction,
-        /// Accepts a partial edit prediction.
-        #[action(deprecated_aliases = ["editor::AcceptPartialCopilotSuggestion"])]
-        AcceptPartialEditPrediction,
-        /// Adds a cursor above the current selection.
         AddSelectionAbove,
         /// Adds a cursor below the current selection.
         AddSelectionBelow,
@@ -551,8 +545,6 @@ actions!(
         NewlineAbove,
         /// Inserts a new line below the current line.
         NewlineBelow,
-        /// Navigates to the next edit prediction.
-        NextEditPrediction,
         /// Scrolls to the next screen.
         NextScreen,
         /// Opens the context menu at cursor position.
@@ -586,8 +578,6 @@ actions!(
         PageUp,
         /// Pastes from clipboard.
         Paste,
-        /// Navigates to the previous edit prediction.
-        PreviousEditPrediction,
         /// Redoes the last undone edit.
         Redo,
         /// Redoes the last selection change.
@@ -664,8 +654,6 @@ actions!(
         SelectUp,
         /// Shows the system character palette.
         ShowCharacterPalette,
-        /// Shows edit prediction at cursor.
-        ShowEditPrediction,
         /// Shows signature help for the current function.
         ShowSignatureHelp,
         /// Shows word completions.
@@ -716,8 +704,6 @@ actions!(
         ToggleInlineValues,
         /// Toggles inline diagnostics display.
         ToggleInlineDiagnostics,
-        /// Toggles edit prediction feature.
-        ToggleEditPrediction,
         /// Toggles line numbers display.
         ToggleLineNumbers,
         /// Toggles the minimap display.
