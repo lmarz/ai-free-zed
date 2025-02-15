@@ -43,7 +43,6 @@ pub struct OpenRequest {
 pub enum OpenRequestKind {
     CliConnection((mpsc::Receiver<CliRequest>, IpcSender<CliResponse>)),
     Extension { extension_id: String },
-    AgentPanel,
     DockMenuAction { index: usize },
 }
 
@@ -68,8 +67,6 @@ impl OpenRequest {
                 this.kind = Some(OpenRequestKind::Extension {
                     extension_id: extension_id.to_string(),
                 });
-            } else if url == "zed://agent" {
-                this.kind = Some(OpenRequestKind::AgentPanel);
             } else if url.starts_with("ssh://") {
                 this.parse_ssh_file_path(&url, cx)?
             } else if let Some(request_path) = parse_zed_link(&url, cx) {

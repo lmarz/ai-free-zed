@@ -513,9 +513,9 @@ impl Vim {
                 // Can't do anything with change/delete/yank/surrounds and text objects. Ignoring
             }
         }
-        self.clear_operator(window, cx);
+        self.clear_operator(cx);
         if let Some(operator) = waiting_operator {
-            self.push_operator(operator, window, cx);
+            self.push_operator(operator, cx);
         }
     }
 
@@ -933,7 +933,7 @@ impl Vim {
                 });
             });
         });
-        self.pop_operator(window, cx);
+        self.pop_operator(cx);
     }
 
     pub fn save_selection_starts(
