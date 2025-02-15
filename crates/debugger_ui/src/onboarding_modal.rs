@@ -6,15 +6,6 @@ use workspace::{ModalView, Workspace};
 
 use crate::DebugPanel;
 
-macro_rules! debugger_onboarding_event {
-    ($name:expr) => {
-        telemetry::event!($name, source = "Debugger Onboarding");
-    };
-    ($name:expr, $($key:ident $(= $value:expr)?),+ $(,)?) => {
-        telemetry::event!($name, source = "Debugger Onboarding", $($key $(= $value)?),+);
-    };
-}
-
 pub struct DebuggerOnboardingModal {
     focus_handle: FocusHandle,
     workspace: Entity<Workspace>,
@@ -35,15 +26,11 @@ impl DebuggerOnboardingModal {
         });
 
         cx.emit(DismissEvent);
-
-        debugger_onboarding_event!("Open Panel Clicked");
     }
 
     fn view_blog(&mut self, _: &ClickEvent, _: &mut Window, cx: &mut Context<Self>) {
         cx.open_url("http://zed.dev/blog/debugger");
         cx.notify();
-
-        debugger_onboarding_event!("Blog Link Clicked");
     }
 
     fn cancel(&mut self, _: &menu::Cancel, _: &mut Window, cx: &mut Context<Self>) {
@@ -80,7 +67,6 @@ impl Render for DebuggerOnboardingModal {
             .overflow_hidden()
             .on_action(cx.listener(Self::cancel))
             .on_action(cx.listener(|_, _: &menu::Cancel, _window, cx| {
-                debugger_onboarding_event!("Canceled", trigger = "Action");
                 cx.emit(DismissEvent);
             }))
             .on_any_mouse_down(cx.listener(|this, _: &MouseDownEvent, window, _cx| {
@@ -133,7 +119,6 @@ impl Render for DebuggerOnboardingModal {
             .child(h_flex().absolute().top_2().right_2().child(
                 IconButton::new("cancel", IconName::Close).on_click(cx.listener(
                     |_, _: &ClickEvent, _window, cx| {
-                        debugger_onboarding_event!("Cancelled", trigger = "X click");
                         cx.emit(DismissEvent);
                     },
                 )),

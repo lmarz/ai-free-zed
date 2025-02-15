@@ -1,6 +1,5 @@
 use super::*;
 use client::{Client, UserStore};
-use clock::FakeSystemClock;
 use gpui::{App, AppContext as _, Entity, SemanticVersion};
 use http_client::FakeHttpClient;
 use rpc::proto::{self};
@@ -239,9 +238,8 @@ fn init_test(cx: &mut App) -> Entity<ChannelStore> {
     release_channel::init(SemanticVersion::default(), cx);
     client::init_settings(cx);
 
-    let clock = Arc::new(FakeSystemClock::new());
     let http = FakeHttpClient::with_404_response();
-    let client = Client::new(clock, http, cx);
+    let client = Client::new(http, cx);
     let user_store = cx.new(|cx| UserStore::new(client.clone(), cx));
 
     client::init(&client, cx);

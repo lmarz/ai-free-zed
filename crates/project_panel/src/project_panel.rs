@@ -3037,7 +3037,6 @@ impl ProjectPanel {
         new_selected_entry: Option<(WorktreeId, ProjectEntryId)>,
         cx: &mut Context<Self>,
     ) {
-        let now = Instant::now();
         let settings = ProjectPanelSettings::get_global(cx);
         let auto_collapse_dirs = settings.auto_fold_dirs;
         let hide_gitignore = settings.hide_gitignore;
@@ -3265,18 +3264,7 @@ impl ProjectPanel {
                 entry_id,
             });
         }
-        let elapsed = now.elapsed();
-        if self.last_reported_update.elapsed() > Duration::from_secs(3600) {
-            telemetry::event!(
-                "Project Panel Updated",
-                elapsed_ms = elapsed.as_millis() as u64,
-                worktree_entries = self
-                    .visible_entries
-                    .iter()
-                    .map(|worktree| worktree.entries.len())
-                    .sum::<usize>(),
-            )
-        }
+        if self.last_reported_update.elapsed() > Duration::from_secs(3600) {}
     }
 
     fn expand_entry(

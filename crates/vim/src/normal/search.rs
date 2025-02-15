@@ -267,7 +267,7 @@ impl Vim {
             self.switch_mode(prior_mode, true, window, cx);
         }
         if let Some(operator) = prior_operator {
-            self.push_operator(operator, window, cx);
+            self.push_operator(operator, cx);
         };
         self.search_motion(
             Motion::ZedSearchResult {
@@ -394,7 +394,7 @@ impl Vim {
             true
         });
         if !searched {
-            self.clear_operator(window, cx)
+            self.clear_operator(cx)
         }
 
         if self.mode.is_visual() {

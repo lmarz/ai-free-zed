@@ -379,7 +379,7 @@ pub fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
     });
     Vim::action(editor, cx, |vim, _: &Comment, window, cx| {
         if !matches!(vim.active_operator(), Some(Operator::Object { .. })) {
-            vim.push_operator(Operator::Object { around: true }, window, cx);
+            vim.push_operator(Operator::Object { around: true }, cx);
         }
         vim.object(Object::Comment, window, cx)
     });
