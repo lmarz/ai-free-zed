@@ -57,7 +57,6 @@ shlex.workspace = true
 sysinfo.workspace = true
 task.workspace = true
 tasks_ui.workspace = true
-telemetry.workspace = true
 terminal_view.workspace = true
 theme.workspace = true
 tree-sitter.workspace = true

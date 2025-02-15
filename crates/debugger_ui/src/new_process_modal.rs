@@ -11,9 +11,7 @@ use std::{
 };
 use tasks_ui::{TaskOverrides, TasksModal};
 
-use dap::{
-    DapRegistry, DebugRequest, TelemetrySpawnLocation, adapters::DebugAdapterName, send_telemetry,
-};
+use dap::{DapRegistry, DebugRequest, adapters::DebugAdapterName};
 use editor::{Editor, EditorElement, EditorStyle};
 use fuzzy::{StringMatch, StringMatchCandidate};
 use gpui::{
@@ -379,7 +377,6 @@ impl NewProcessModal {
             };
 
             debug_panel.update_in(cx, |debug_panel, window, cx| {
-                send_telemetry(&config, TelemetrySpawnLocation::Custom, cx);
                 debug_panel.start_session(config, task_context, None, worktree_id, window, cx)
             })?;
             this.update(cx, |_, cx| {
@@ -1407,7 +1404,6 @@ impl PickerDelegate for DebugDelegate {
             };
 
             this.update_in(cx, |this, window, cx| {
-                send_telemetry(&debug_scenario, TelemetrySpawnLocation::ScenarioList, cx);
                 this.delegate
                     .debug_panel
                     .update(cx, |panel, cx| {
@@ -1449,7 +1445,6 @@ impl PickerDelegate for DebugDelegate {
             })
             .unwrap_or_default();
 
-        send_telemetry(&debug_scenario, TelemetrySpawnLocation::ScenarioList, cx);
         self.debug_panel
             .update(cx, |panel, cx| {
                 panel.start_session(debug_scenario, task_context, None, worktree_id, window, cx);
