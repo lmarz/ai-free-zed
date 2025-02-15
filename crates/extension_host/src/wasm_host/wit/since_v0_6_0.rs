@@ -937,39 +937,6 @@ impl ExtensionImports for WasmState {
                             initialization_options: settings.initialization_options,
                         })?)
                     }
-                    "context_servers" => {
-                        let settings = key
-                            .and_then(|key| {
-                                ProjectSettings::get(location, cx)
-                                    .context_servers
-                                    .get(key.as_str())
-                            })
-                            .cloned()
-                            .unwrap_or_else(|| {
-                                project::project_settings::ContextServerSettings::Extension {
-                                    settings: serde_json::json!({}),
-                                }
-                            });
-
-                        match settings {
-                            project::project_settings::ContextServerSettings::Custom {
-                                command,
-                            } => Ok(serde_json::to_string(&settings::ContextServerSettings {
-                                command: Some(settings::CommandSettings {
-                                    path: Some(command.path),
-                                    arguments: Some(command.args),
-                                    env: command.env.map(|env| env.into_iter().collect()),
-                                }),
-                                settings: None,
-                            })?),
-                            project::project_settings::ContextServerSettings::Extension {
-                                settings,
-                            } => Ok(serde_json::to_string(&settings::ContextServerSettings {
-                                command: None,
-                                settings: Some(settings),
-                            })?),
-                        }
-                    }
                     _ => {
                         bail!("Unknown settings category: {}", category);
                     }

@@ -1,6 +1,5 @@
 use anyhow::Context as _;
 use collections::HashMap;
-use context_server::ContextServerCommand;
 use dap::adapters::DebugAdapterName;
 use fs::Fs;
 use futures::StreamExt as _;
@@ -53,10 +52,6 @@ pub struct ProjectSettings {
     #[serde(default)]
     pub dap: HashMap<DebugAdapterName, DapSettings>,
 
-    /// Settings for context servers used for AI-related features.
-    #[serde(default)]
-    pub context_servers: HashMap<Arc<str>, ContextServerSettings>,
-
     /// Configuration for Diagnostics-related features.
     #[serde(default)]
     pub diagnostics: DiagnosticsSettings,
@@ -84,24 +79,6 @@ pub struct DapSettings {
     pub binary: Option<String>,
     #[serde(default)]
     pub args: Vec<String>,
-}
-
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, JsonSchema, Debug)]
-#[serde(tag = "source", rename_all = "snake_case")]
-pub enum ContextServerSettings {
-    Custom {
-        /// The command to run this context server.
-        ///
-        /// This will override the command set by an extension.
-        command: ContextServerCommand,
-    },
-    Extension {
-        /// The settings for this context server specified by the extension.
-        ///
-        /// Consult the documentation for the context server to see what settings
-        /// are supported.
-        settings: serde_json::Value,
-    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -456,40 +433,6 @@ impl Settings for ProjectSettings {
                 })
             }
         }
-
-        #[derive(Deserialize)]
-        struct VsCodeContextServerCommand {
-            command: String,
-            args: Option<Vec<String>>,
-            env: Option<HashMap<String, String>>,
-            // note: we don't support envFile and type
-        }
-        impl From<VsCodeContextServerCommand> for ContextServerCommand {
-            fn from(cmd: VsCodeContextServerCommand) -> Self {
-                Self {
-                    path: cmd.command,
-                    args: cmd.args.unwrap_or_default(),
-                    env: cmd.env,
-                }
-            }
-        }
-        if let Some(mcp) = vscode.read_value("mcp").and_then(|v| v.as_object()) {
-            current
-                .context_servers
-                .extend(mcp.iter().filter_map(|(k, v)| {
-                    Some((
-                        k.clone().into(),
-                        ContextServerSettings::Custom {
-                            command: serde_json::from_value::<VsCodeContextServerCommand>(
-                                v.clone(),
-                            )
-                            .ok()?
-                            .into(),
-                        },
-                    ))
-                }));
-        }
-
         // TODO: translate lsp settings for rust-analyzer and other popular ones to old.lsp
     }
 }
