@@ -635,16 +635,9 @@ pub(crate) struct Highlights<'a> {
     pub styles: HighlightStyles,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct InlineCompletionStyles {
-    pub insertion: HighlightStyle,
-    pub whitespace: HighlightStyle,
-}
-
 #[derive(Default, Debug, Clone, Copy)]
 pub struct HighlightStyles {
     pub inlay_hint: Option<HighlightStyle>,
-    pub inline_completion: Option<InlineCompletionStyles>,
 }
 
 #[derive(Clone)]
@@ -959,7 +952,6 @@ impl DisplaySnapshot {
             language_aware,
             HighlightStyles {
                 inlay_hint: Some(editor_style.inlay_hints_style),
-                inline_completion: Some(editor_style.inline_completion_styles),
             },
         )
         .flat_map(|chunk| {
@@ -1994,67 +1986,6 @@ pub mod tests {
                 .next(),
             Some("c   ccccc")
         );
-    }
-
-    #[gpui::test]
-    fn test_inlays_with_newlines_after_blocks(cx: &mut gpui::TestAppContext) {
-        cx.update(|cx| init_test(cx, |_| {}));
-
-        let buffer = cx.new(|cx| Buffer::local("a", cx));
-        let buffer = cx.new(|cx| MultiBuffer::singleton(buffer, cx));
-        let buffer_snapshot = buffer.read_with(cx, |buffer, cx| buffer.snapshot(cx));
-
-        let font_size = px(14.0);
-        let map = cx.new(|cx| {
-            DisplayMap::new(
-                buffer.clone(),
-                font("Helvetica"),
-                font_size,
-                None,
-                1,
-                1,
-                FoldPlaceholder::test(),
-                DiagnosticSeverity::Warning,
-                cx,
-            )
-        });
-
-        map.update(cx, |map, cx| {
-            map.insert_blocks(
-                [BlockProperties {
-                    placement: BlockPlacement::Above(
-                        buffer_snapshot.anchor_before(Point::new(0, 0)),
-                    ),
-                    height: Some(2),
-                    style: BlockStyle::Sticky,
-                    render: Arc::new(|_| div().into_any()),
-                    priority: 0,
-                    render_in_minimap: true,
-                }],
-                cx,
-            );
-        });
-        map.update(cx, |m, cx| assert_eq!(m.snapshot(cx).text(), "\n\na"));
-
-        map.update(cx, |map, cx| {
-            map.splice_inlays(
-                &[],
-                vec![Inlay::inline_completion(
-                    0,
-                    buffer_snapshot.anchor_after(0),
-                    "\n",
-                )],
-                cx,
-            );
-        });
-        map.update(cx, |m, cx| assert_eq!(m.snapshot(cx).text(), "\n\n\na"));
-
-        // Regression test: updating the display map does not crash when a
-        // block is immediately followed by a multi-line inlay.
-        buffer.update(cx, |buffer, cx| {
-            buffer.edit([(1..1, "b")], None, cx);
-        });
-        map.update(cx, |m, cx| assert_eq!(m.snapshot(cx).text(), "\n\n\nab"));
     }
 
     #[gpui::test]

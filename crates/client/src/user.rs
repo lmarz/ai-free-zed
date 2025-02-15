@@ -2,25 +2,16 @@ use super::{Client, Status, TypedEnvelope, proto};
 use anyhow::{Context as _, Result, anyhow};
 use chrono::{DateTime, Utc};
 use collections::{HashMap, HashSet, hash_map::Entry};
-use derive_more::Deref;
 use feature_flags::FeatureFlagAppExt;
 use futures::{Future, StreamExt, channel::mpsc};
 use gpui::{
     App, AsyncApp, Context, Entity, EventEmitter, SharedString, SharedUri, Task, WeakEntity,
 };
-use http_client::http::{HeaderMap, HeaderValue};
 use postage::{sink::Sink, watch};
 use rpc::proto::{RequestMessage, UsersResponse};
-use std::{
-    str::FromStr as _,
-    sync::{Arc, Weak},
-};
+use std::sync::{Arc, Weak};
 use text::ReplicaId;
 use util::{TryFutureExt as _, maybe};
-use zed_llm_client::{
-    EDIT_PREDICTIONS_USAGE_AMOUNT_HEADER_NAME, EDIT_PREDICTIONS_USAGE_LIMIT_HEADER_NAME,
-    MODEL_REQUESTS_USAGE_AMOUNT_HEADER_NAME, MODEL_REQUESTS_USAGE_LIMIT_HEADER_NAME, UsageLimit,
-};
 
 pub type UserId = u64;
 
@@ -113,8 +104,6 @@ pub struct UserStore {
     current_plan: Option<proto::Plan>,
     subscription_period: Option<(DateTime<Utc>, DateTime<Utc>)>,
     trial_started_at: Option<DateTime<Utc>>,
-    model_request_usage: Option<ModelRequestUsage>,
-    edit_prediction_usage: Option<EditPredictionUsage>,
     is_usage_based_billing_enabled: Option<bool>,
     account_too_young: Option<bool>,
     has_overdue_invoices: Option<bool>,
@@ -162,18 +151,6 @@ enum UpdateContacts {
     Clear(postage::barrier::Sender),
 }
 
-#[derive(Debug, Clone, Copy, Deref)]
-pub struct ModelRequestUsage(pub RequestUsage);
-
-#[derive(Debug, Clone, Copy, Deref)]
-pub struct EditPredictionUsage(pub RequestUsage);
-
-#[derive(Debug, Clone, Copy)]
-pub struct RequestUsage {
-    pub limit: UsageLimit,
-    pub amount: i32,
-}
-
 impl UserStore {
     pub fn new(client: Arc<Client>, cx: &Context<Self>) -> Self {
         let (mut current_user_tx, current_user_rx) = watch::channel();
@@ -191,8 +168,6 @@ impl UserStore {
             current_plan: None,
             subscription_period: None,
             trial_started_at: None,
-            model_request_usage: None,
-            edit_prediction_usage: None,
             is_usage_based_billing_enabled: None,
             account_too_young: None,
             has_overdue_invoices: None,
@@ -244,10 +219,6 @@ impl UserStore {
                                         let staff =
                                             info.staff && !*feature_flags::ZED_DISABLE_STAFF;
                                         cx.update_flags(staff, info.flags);
-                                        client.telemetry.set_authenticated_user_info(
-                                            Some(info.metrics_id.clone()),
-                                            staff,
-                                        );
 
                                         this.update(cx, |this, cx| {
                                             let accepted_tos_at = {
@@ -372,39 +343,9 @@ impl UserStore {
             this.account_too_young = message.payload.account_too_young;
             this.has_overdue_invoices = message.payload.has_overdue_invoices;
 
-            if let Some(usage) = message.payload.usage {
-                // limits are always present even though they are wrapped in Option
-                this.model_request_usage = usage
-                    .model_requests_usage_limit
-                    .and_then(|limit| {
-                        RequestUsage::from_proto(usage.model_requests_usage_amount, limit)
-                    })
-                    .map(ModelRequestUsage);
-                this.edit_prediction_usage = usage
-                    .edit_predictions_usage_limit
-                    .and_then(|limit| {
-                        RequestUsage::from_proto(usage.model_requests_usage_amount, limit)
-                    })
-                    .map(EditPredictionUsage);
-            }
-
             cx.notify();
         })?;
         Ok(())
-    }
-
-    pub fn update_model_request_usage(&mut self, usage: ModelRequestUsage, cx: &mut Context<Self>) {
-        self.model_request_usage = Some(usage);
-        cx.notify();
-    }
-
-    pub fn update_edit_prediction_usage(
-        &mut self,
-        usage: EditPredictionUsage,
-        cx: &mut Context<Self>,
-    ) {
-        self.edit_prediction_usage = Some(usage);
-        cx.notify();
     }
 
     fn update_contacts(&mut self, message: UpdateContacts, cx: &Context<Self>) -> Task<Result<()>> {
@@ -779,14 +720,6 @@ impl UserStore {
         self.is_usage_based_billing_enabled
     }
 
-    pub fn model_request_usage(&self) -> Option<ModelRequestUsage> {
-        self.model_request_usage
-    }
-
-    pub fn edit_prediction_usage(&self) -> Option<EditPredictionUsage> {
-        self.edit_prediction_usage
-    }
-
     pub fn watch_current_user(&self) -> watch::Receiver<Option<Arc<User>>> {
         self.current_user.clone()
     }
@@ -947,65 +880,5 @@ impl Collaborator {
             committer_name: message.committer_name,
             committer_email: message.committer_email,
         })
-    }
-}
-
-impl RequestUsage {
-    pub fn over_limit(&self) -> bool {
-        match self.limit {
-            UsageLimit::Limited(limit) => self.amount >= limit,
-            UsageLimit::Unlimited => false,
-        }
-    }
-
-    pub fn from_proto(amount: u32, limit: proto::UsageLimit) -> Option<Self> {
-        let limit = match limit.variant? {
-            proto::usage_limit::Variant::Limited(limited) => {
-                UsageLimit::Limited(limited.limit as i32)
-            }
-            proto::usage_limit::Variant::Unlimited(_) => UsageLimit::Unlimited,
-        };
-        Some(RequestUsage {
-            limit,
-            amount: amount as i32,
-        })
-    }
-
-    fn from_headers(
-        limit_name: &str,
-        amount_name: &str,
-        headers: &HeaderMap<HeaderValue>,
-    ) -> Result<Self> {
-        let limit = headers
-            .get(limit_name)
-            .with_context(|| format!("missing {limit_name:?} header"))?;
-        let limit = UsageLimit::from_str(limit.to_str()?)?;
-
-        let amount = headers
-            .get(amount_name)
-            .with_context(|| format!("missing {amount_name:?} header"))?;
-        let amount = amount.to_str()?.parse::<i32>()?;
-
-        Ok(Self { limit, amount })
-    }
-}
-
-impl ModelRequestUsage {
-    pub fn from_headers(headers: &HeaderMap<HeaderValue>) -> Result<Self> {
-        Ok(Self(RequestUsage::from_headers(
-            MODEL_REQUESTS_USAGE_LIMIT_HEADER_NAME,
-            MODEL_REQUESTS_USAGE_AMOUNT_HEADER_NAME,
-            headers,
-        )?))
-    }
-}
-
-impl EditPredictionUsage {
-    pub fn from_headers(headers: &HeaderMap<HeaderValue>) -> Result<Self> {
-        Ok(Self(RequestUsage::from_headers(
-            EDIT_PREDICTIONS_USAGE_LIMIT_HEADER_NAME,
-            EDIT_PREDICTIONS_USAGE_AMOUNT_HEADER_NAME,
-            headers,
-        )?))
     }
 }
