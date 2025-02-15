@@ -21,7 +21,6 @@ async-recursion = "0.3"
 async-tungstenite = { workspace = true, features = ["tokio", "tokio-rustls-manual-roots"] }
 base64.workspace = true
 chrono = { workspace = true, features = ["serde"] }
-clock.workspace = true
 collections.workspace = true
 credentials_provider.workspace = true
 feature_flags.workspace = true
@@ -35,7 +34,6 @@ http_client.workspace = true
 http_client_tls.workspace = true
 httparse = "1.10"
 log.workspace = true
-paths.workspace = true
 parking_lot.workspace = true
 postage.workspace = true
 rand.workspace = true
@@ -45,7 +43,6 @@ schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 settings.workspace = true
-sha2.workspace = true
 smol.workspace = true
 telemetry_events.workspace = true
 text.workspace = true
@@ -56,7 +53,6 @@ tokio-socks = { version = "0.5.2", default-features = false, features = ["future
 url.workspace = true
 util.workspace = true
 worktree.workspace = true
-telemetry.workspace = true
 tokio.workspace = true
 workspace-hack.workspace = true
 

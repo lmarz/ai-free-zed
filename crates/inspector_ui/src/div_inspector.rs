@@ -498,7 +498,6 @@ impl DivInspector {
             editor.set_show_breakpoints(false, cx);
             editor.set_show_git_diff_gutter(false, cx);
             editor.set_show_runnables(false, cx);
-            editor.set_show_edit_predictions(Some(false), window, cx);
             editor
         })
     }
