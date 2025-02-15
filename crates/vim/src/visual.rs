@@ -389,7 +389,7 @@ impl Vim {
         cx: &mut Context<Vim>,
     ) {
         if let Some(Operator::Object { around }) = self.active_operator() {
-            self.pop_operator(window, cx);
+            self.pop_operator(cx);
             let current_mode = self.mode;
             let target_mode = object.target_visual_mode(current_mode, around);
             if target_mode != current_mode {
@@ -840,7 +840,7 @@ impl Vim {
             }
         });
         if !match_exists {
-            self.clear_operator(window, cx);
+            self.clear_operator(cx);
             self.stop_replaying(cx);
             return;
         }

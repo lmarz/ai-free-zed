@@ -18,10 +18,8 @@ use crate::application_menu::{
     ActivateDirection, ActivateMenuLeft, ActivateMenuRight, OpenApplicationMenu,
 };
 
-use auto_update::AutoUpdateStatus;
 use call::ActiveCall;
 use client::{Client, UserStore, zed_urls};
-use cloud_llm_client::Plan;
 use gpui::{
     Action, AnyElement, App, Context, Corner, Element, Entity, Focusable, InteractiveElement,
     IntoElement, MouseButton, ParentElement, Render, StatefulInteractiveElement, Styled,
@@ -189,7 +187,7 @@ impl Render for TitleBar {
                 .pr_1()
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .children(self.render_call_controls(window, cx))
-                .children(self.render_connection_status(status, cx))
+                .children(self.render_connection_status(status))
                 .when(
                     user.is_none() && TitleBarSettings::get_global(cx).show_sign_in,
                     |el| el.child(self.render_sign_in_button(cx)),
@@ -282,8 +280,6 @@ impl TitleBar {
                 zed_actions::agent::OpenClaudeCodeOnboardingModal.boxed_clone(),
                 cx,
             )
-            // When updating this to a non-AI feature release, remove this line.
-            .visible_when(|cx| !project::DisableAiSettings::get_global(cx).disable_ai)
         });
 
         let platform_titlebar = cx.new(|_| PlatformTitleBar::new(id));
@@ -557,11 +553,7 @@ impl TitleBar {
             .log_err();
     }
 
-    fn render_connection_status(
-        &self,
-        status: &client::Status,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
+    fn render_connection_status(&self, status: &client::Status) -> Option<AnyElement> {
         match status {
             client::Status::ConnectionError
             | client::Status::ConnectionLost
@@ -574,33 +566,6 @@ impl TitleBar {
                     .tooltip(Tooltip::text("Disconnected"))
                     .into_any_element(),
             ),
-            client::Status::UpgradeRequired => {
-                let auto_updater = auto_update::AutoUpdater::get(cx);
-                let label = match auto_updater.map(|auto_update| auto_update.read(cx).status()) {
-                    Some(AutoUpdateStatus::Updated { .. }) => "Please restart Zed to Collaborate",
-                    Some(AutoUpdateStatus::Installing { .. })
-                    | Some(AutoUpdateStatus::Downloading { .. })
-                    | Some(AutoUpdateStatus::Checking) => "Updating...",
-                    Some(AutoUpdateStatus::Idle) | Some(AutoUpdateStatus::Errored) | None => {
-                        "Please update Zed to Collaborate"
-                    }
-                };
-
-                Some(
-                    Button::new("connection-status", label)
-                        .label_size(LabelSize::Small)
-                        .on_click(|_, window, cx| {
-                            if let Some(auto_updater) = auto_update::AutoUpdater::get(cx)
-                                && auto_updater.read(cx).status().is_updated()
-                            {
-                                workspace::reload(cx);
-                                return;
-                            }
-                            auto_update::check(&Default::default(), window, cx);
-                        })
-                        .into_any_element(),
-                )
-            }
             _ => None,
         }
     }
@@ -625,12 +590,6 @@ impl TitleBar {
     pub fn render_user_menu_button(&mut self, cx: &mut Context<Self>) -> impl Element {
         let user_store = self.user_store.read(cx);
         if let Some(user) = user_store.current_user() {
-            let has_subscription_period = user_store.subscription_period().is_some();
-            let plan = user_store.plan().filter(|_| {
-                // Since the user might be on the legacy free plan we filter based on whether we have a subscription period.
-                has_subscription_period
-            });
-
             let user_avatar = user.avatar_uri.clone();
             let free_chip_bg = cx
                 .theme()
@@ -639,24 +598,14 @@ impl TitleBar {
                 .opacity(0.5)
                 .blend(cx.theme().colors().text_accent.opacity(0.05));
 
-            let pro_chip_bg = cx
-                .theme()
-                .colors()
-                .editor_background
-                .opacity(0.5)
-                .blend(cx.theme().colors().text_accent.opacity(0.2));
-
             PopoverMenu::new("user-menu")
                 .anchor(Corner::TopRight)
                 .menu(move |window, cx| {
                     ContextMenu::build(window, cx, |menu, _, _cx| {
                         let user_login = user.github_login.clone();
 
-                        let (plan_name, label_color, bg_color) = match plan {
-                            None | Some(Plan::ZedFree) => ("Free", Color::Default, free_chip_bg),
-                            Some(Plan::ZedProTrial) => ("Pro Trial", Color::Accent, pro_chip_bg),
-                            Some(Plan::ZedPro) => ("Pro", Color::Accent, pro_chip_bg),
-                        };
+                        let (plan_name, label_color, bg_color) =
+                            ("Free", Color::Default, free_chip_bg);
 
                         menu.custom_entry(
                             move |_window, _cx| {
