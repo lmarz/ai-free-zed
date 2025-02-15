@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use client::TelemetrySettings;
 use fs::Fs;
 use gpui::{App, IntoElement};
 use settings::{BaseKeymap, Settings, update_settings_file};
@@ -197,71 +196,6 @@ fn render_theme_section(tab_index: &mut isize, cx: &mut App) -> impl IntoElement
     }
 }
 
-fn render_telemetry_section(tab_index: &mut isize, cx: &App) -> impl IntoElement {
-    let fs = <dyn Fs>::global(cx);
-
-    v_flex()
-        .gap_4()
-        .child(Label::new("Telemetry").size(LabelSize::Large))
-        .child(SwitchField::new(
-            "onboarding-telemetry-metrics",
-            "Help Improve Zed",
-            Some("Sending anonymous usage data helps us build the right features and create the best experience.".into()),
-            if TelemetrySettings::get_global(cx).metrics {
-                ui::ToggleState::Selected
-            } else {
-                ui::ToggleState::Unselected
-            },
-            {
-            let fs = fs.clone();
-            move |selection, _, cx| {
-                let enabled = match selection {
-                    ToggleState::Selected => true,
-                    ToggleState::Unselected => false,
-                    ToggleState::Indeterminate => { return; },
-                };
-
-                update_settings_file::<TelemetrySettings>(
-                    fs.clone(),
-                    cx,
-                    move |setting, _| setting.metrics = Some(enabled),
-                );
-            }},
-        ).tab_index({
-            *tab_index += 1;
-            *tab_index
-        }))
-        .child(SwitchField::new(
-            "onboarding-telemetry-crash-reports",
-            "Help Fix Zed",
-            Some("Send crash reports so we can fix critical issues fast.".into()),
-            if TelemetrySettings::get_global(cx).diagnostics {
-                ui::ToggleState::Selected
-            } else {
-                ui::ToggleState::Unselected
-            },
-            {
-                let fs = fs.clone();
-                move |selection, _, cx| {
-                    let enabled = match selection {
-                        ToggleState::Selected => true,
-                        ToggleState::Unselected => false,
-                        ToggleState::Indeterminate => { return; },
-                    };
-
-                    update_settings_file::<TelemetrySettings>(
-                        fs.clone(),
-                        cx,
-                        move |setting, _| setting.diagnostics = Some(enabled),
-                    );
-                }
-            }
-        ).tab_index({
-                    *tab_index += 1;
-                    *tab_index
-                }))
-}
-
 fn render_base_keymap_section(tab_index: &mut isize, cx: &mut App) -> impl IntoElement {
     let base_keymap = match BaseKeymap::get_global(cx) {
         BaseKeymap::VSCode => Some(0),
@@ -357,5 +291,4 @@ pub(crate) fn render_basics_page(cx: &mut App) -> impl IntoElement {
         .child(render_theme_section(&mut tab_index, cx))
         .child(render_base_keymap_section(&mut tab_index, cx))
         .child(render_vim_mode_switch(&mut tab_index, cx))
-        .child(render_telemetry_section(&mut tab_index, cx))
 }

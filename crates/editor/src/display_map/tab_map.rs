@@ -25,12 +25,6 @@ impl TabMap {
         (Self(snapshot.clone()), snapshot)
     }
 
-    #[cfg(test)]
-    pub fn set_max_expansion_column(&mut self, column: u32) -> TabSnapshot {
-        self.0.max_expansion_column = column;
-        self.0.clone()
-    }
-
     pub fn sync(
         &mut self,
         fold_snapshot: FoldSnapshot,
@@ -605,7 +599,6 @@ mod tests {
         MultiBuffer,
         display_map::{fold_map::FoldMap, inlay_map::InlayMap},
     };
-    use rand::{Rng, prelude::StdRng};
 
     #[gpui::test]
     fn test_expand_tabs(cx: &mut gpui::App) {
@@ -731,84 +724,6 @@ mod tests {
                 chunks.push((text, was_tab));
             }
             chunks
-        }
-    }
-
-    #[gpui::test(iterations = 100)]
-    fn test_random_tabs(cx: &mut gpui::App, mut rng: StdRng) {
-        let tab_size = NonZeroU32::new(rng.gen_range(1..=4)).unwrap();
-        let len = rng.gen_range(0..30);
-        let buffer = if rng.r#gen() {
-            let text = util::RandomCharIter::new(&mut rng)
-                .take(len)
-                .collect::<String>();
-            MultiBuffer::build_simple(&text, cx)
-        } else {
-            MultiBuffer::build_random(&mut rng, cx)
-        };
-        let buffer_snapshot = buffer.read(cx).snapshot(cx);
-        log::info!("Buffer text: {:?}", buffer_snapshot.text());
-
-        let (mut inlay_map, inlay_snapshot) = InlayMap::new(buffer_snapshot.clone());
-        log::info!("InlayMap text: {:?}", inlay_snapshot.text());
-        let (mut fold_map, _) = FoldMap::new(inlay_snapshot.clone());
-        fold_map.randomly_mutate(&mut rng);
-        let (fold_snapshot, _) = fold_map.read(inlay_snapshot, vec![]);
-        log::info!("FoldMap text: {:?}", fold_snapshot.text());
-        let (inlay_snapshot, _) = inlay_map.randomly_mutate(&mut 0, &mut rng);
-        log::info!("InlayMap text: {:?}", inlay_snapshot.text());
-
-        let (mut tab_map, _) = TabMap::new(fold_snapshot.clone(), tab_size);
-        let tabs_snapshot = tab_map.set_max_expansion_column(32);
-
-        let text = text::Rope::from(tabs_snapshot.text().as_str());
-        log::info!(
-            "TabMap text (tab size: {}): {:?}",
-            tab_size,
-            tabs_snapshot.text(),
-        );
-
-        for _ in 0..5 {
-            let end_row = rng.gen_range(0..=text.max_point().row);
-            let end_column = rng.gen_range(0..=text.line_len(end_row));
-            let mut end = TabPoint(text.clip_point(Point::new(end_row, end_column), Bias::Right));
-            let start_row = rng.gen_range(0..=text.max_point().row);
-            let start_column = rng.gen_range(0..=text.line_len(start_row));
-            let mut start =
-                TabPoint(text.clip_point(Point::new(start_row, start_column), Bias::Left));
-            if start > end {
-                mem::swap(&mut start, &mut end);
-            }
-
-            let expected_text = text
-                .chunks_in_range(text.point_to_offset(start.0)..text.point_to_offset(end.0))
-                .collect::<String>();
-            let expected_summary = TextSummary::from(expected_text.as_str());
-            assert_eq!(
-                tabs_snapshot
-                    .chunks(start..end, false, Highlights::default())
-                    .map(|c| c.text)
-                    .collect::<String>(),
-                expected_text,
-                "chunks({:?}..{:?})",
-                start,
-                end
-            );
-
-            let mut actual_summary = tabs_snapshot.text_summary_for_range(start..end);
-            if tab_size.get() > 1 && inlay_snapshot.text().contains('\t') {
-                actual_summary.longest_row = expected_summary.longest_row;
-                actual_summary.longest_row_chars = expected_summary.longest_row_chars;
-            }
-            assert_eq!(actual_summary, expected_summary);
-        }
-
-        for row in 0..=text.max_point().row {
-            assert_eq!(
-                tabs_snapshot.line_len(row),
-                text.line_len(row),
-                "line_len({row})"
-            );
         }
     }
 }

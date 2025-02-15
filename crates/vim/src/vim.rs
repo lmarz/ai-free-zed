@@ -22,13 +22,13 @@ mod visual;
 use anyhow::Result;
 use collections::HashMap;
 use editor::{
+    movement::{self, FindRange},
     Anchor, Bias, Editor, EditorEvent, EditorSettings, HideMouseCursorOrigin, SelectionEffects,
     ToPoint,
-    movement::{self, FindRange},
 };
 use gpui::{
-    Action, App, AppContext, Axis, Context, Entity, EventEmitter, KeyContext, KeystrokeEvent,
-    Render, Subscription, Task, WeakEntity, Window, actions,
+    actions, Action, App, AppContext, Axis, Context, Entity, EventEmitter, KeyContext,
+    KeystrokeEvent, Render, Subscription, Task, WeakEntity, Window,
 };
 use insert::{NormalBefore, TemporaryNormal};
 use language::{CharKind, CursorShape, Point, Selection, SelectionGoal, TransactionId};
@@ -39,12 +39,12 @@ use object::Object;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_derive::Serialize;
-use settings::{Settings, SettingsSources, SettingsStore, update_settings_file};
+use settings::{update_settings_file, Settings, SettingsSources, SettingsStore};
 use state::{Mode, Operator, RecordedSelection, SearchState, VimGlobals};
 use std::{mem, ops::Range, sync::Arc};
 use surrounds::SurroundsType;
 use theme::ThemeSettings;
-use ui::{IntoElement, SharedString, px};
+use ui::{px, IntoElement, SharedString};
 use vim_mode_setting::HelixModeSetting;
 use vim_mode_setting::VimModeSetting;
 use workspace::{self, Pane, Workspace};
@@ -744,22 +744,6 @@ impl Vim {
             Vim::action(editor, cx, |vim, _: &Tab, window, cx| {
                 vim.input_ignored(" ".into(), window, cx)
             });
-            Vim::action(
-                editor,
-                cx,
-                |vim, action: &editor::actions::AcceptEditPrediction, window, cx| {
-                    vim.update_editor(window, cx, |_, editor, window, cx| {
-                        editor.accept_edit_prediction(action, window, cx);
-                    });
-                    // In non-insertion modes, predictions will be hidden and instead a jump will be
-                    // displayed (and performed by `accept_edit_prediction`). This switches to
-                    // insert mode so that the prediction is displayed after the jump.
-                    match vim.mode {
-                        Mode::Replace => {}
-                        _ => vim.switch_mode(Mode::Insert, true, window, cx),
-                    };
-                },
-            );
             Vim::action(editor, cx, |vim, _: &Enter, window, cx| {
                 vim.input_ignored("\n".into(), window, cx)
             });
@@ -1718,34 +1702,18 @@ impl Vim {
                 if self.mode == Mode::Replace {
                     self.multi_replace(text, window, cx)
                 }
-
-                if self.mode == Mode::Normal {
-                    self.update_editor(window, cx, |_, editor, window, cx| {
-                        editor.accept_edit_prediction(
-                            &editor::actions::AcceptEditPrediction {},
-                            window,
-                            cx,
-                        );
-                    });
-                }
             }
         }
     }
 
     fn sync_vim_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.update_editor(window, cx, |vim, editor, window, cx| {
+        self.update_editor(window, cx, |vim, editor, _, cx| {
             editor.set_cursor_shape(vim.cursor_shape(cx), cx);
             editor.set_clip_at_line_ends(vim.clip_at_line_ends(), cx);
             editor.set_collapse_matches(true);
             editor.set_input_enabled(vim.editor_input_enabled());
             editor.set_autoindent(vim.should_autoindent());
             editor.selections.line_mode = matches!(vim.mode, Mode::VisualLine);
-
-            let hide_edit_predictions = match vim.mode {
-                Mode::Insert | Mode::Replace => false,
-                _ => true,
-            };
-            editor.set_edit_predictions_hidden_for_vim_mode(hide_edit_predictions, window, cx);
         });
         cx.notify()
     }

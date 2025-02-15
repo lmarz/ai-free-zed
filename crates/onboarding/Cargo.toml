@@ -15,7 +15,6 @@ path = "src/onboarding.rs"
 default = []
 
 [dependencies]
-ai_onboarding.workspace = true
 anyhow.workspace = true
 client.workspace = true
 command_palette_hooks.workspace = true
@@ -29,7 +28,6 @@ fuzzy.workspace = true
 gpui.workspace = true
 itertools.workspace = true
 language.workspace = true
-language_model.workspace = true
 menu.workspace = true
 notifications.workspace = true
 picker.workspace = true

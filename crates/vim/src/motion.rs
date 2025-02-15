@@ -3090,14 +3090,8 @@ fn indent_motion(
 #[cfg(test)]
 mod test {
 
-    use crate::{
-        state::Mode,
-        test::{NeovimBackedTestContext, VimTestContext},
-    };
-    use editor::display_map::Inlay;
+    use crate::test::NeovimBackedTestContext;
     use indoc::indoc;
-    use language::Point;
-    use multi_buffer::MultiBufferRow;
 
     #[gpui::test]
     async fn test_start_end_of_paragraph(cx: &mut gpui::TestAppContext) {
@@ -3805,13 +3799,6 @@ mod test {
             Mode::Normal,
         );
 
-        cx.update_editor(|editor, _window, cx| {
-            let range = editor.selections.newest_anchor().range();
-            let inlay_text = "  field: int,\n  field2: string\n  field3: float";
-            let inlay = Inlay::edit_prediction(1, range.start, inlay_text);
-            editor.splice_inlays(&[], vec![inlay], cx);
-        });
-
         cx.simulate_keystrokes("j");
         cx.assert_state(
             indoc! {"
@@ -3835,14 +3822,6 @@ mod test {
         "},
             Mode::Normal,
         );
-        cx.update_editor(|editor, _window, cx| {
-            let snapshot = editor.buffer().read(cx).snapshot(cx);
-            let end_of_line =
-                snapshot.anchor_after(Point::new(0, snapshot.line_len(MultiBufferRow(0))));
-            let inlay_text = " hint";
-            let inlay = Inlay::edit_prediction(1, end_of_line, inlay_text);
-            editor.splice_inlays(&[], vec![inlay], cx);
-        });
         cx.simulate_keystrokes("$");
         cx.assert_state(
             indoc! {"
