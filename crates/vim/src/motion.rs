@@ -2894,14 +2894,8 @@ fn indent_motion(
 #[cfg(test)]
 mod test {
 
-    use crate::{
-        state::Mode,
-        test::{NeovimBackedTestContext, VimTestContext},
-    };
-    use editor::display_map::Inlay;
+    use crate::test::NeovimBackedTestContext;
     use indoc::indoc;
-    use language::Point;
-    use multi_buffer::MultiBufferRow;
 
     #[gpui::test]
     async fn test_start_end_of_paragraph(cx: &mut gpui::TestAppContext) {
