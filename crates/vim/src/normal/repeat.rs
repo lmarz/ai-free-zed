@@ -66,12 +66,12 @@ pub(crate) fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
         vim.repeat(false, window, cx)
     });
 
-    Vim::action(editor, cx, |vim, _: &ToggleRecord, window, cx| {
+    Vim::action(editor, cx, |vim, _: &ToggleRecord, _, cx| {
         let globals = Vim::globals(cx);
         if let Some(char) = globals.recording_register.take() {
             globals.last_recorded_register = Some(char)
         } else {
-            vim.push_operator(Operator::RecordRegister, window, cx);
+            vim.push_operator(Operator::RecordRegister, cx);
         }
     });
 
@@ -162,17 +162,12 @@ impl Replayer {
 }
 
 impl Vim {
-    pub(crate) fn record_register(
-        &mut self,
-        register: char,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    pub(crate) fn record_register(&mut self, register: char, cx: &mut Context<Self>) {
         let globals = Vim::globals(cx);
         globals.recording_register = Some(register);
         globals.recordings.remove(&register);
         globals.ignore_current_insertion = true;
-        self.clear_operator(window, cx)
+        self.clear_operator(cx)
     }
 
     pub(crate) fn replay_register(
@@ -183,7 +178,7 @@ impl Vim {
     ) {
         let mut count = Vim::take_count(cx).unwrap_or(1);
         Vim::take_forced_motion(cx);
-        self.clear_operator(window, cx);
+        self.clear_operator(cx);
 
         let globals = Vim::globals(cx);
         if register == '@' {

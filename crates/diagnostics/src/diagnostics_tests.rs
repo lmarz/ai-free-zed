@@ -3,7 +3,7 @@ use collections::{HashMap, HashSet};
 use editor::{
     DisplayPoint, EditorSettings,
     actions::{GoToDiagnostic, GoToPreviousDiagnostic, Hover, MoveToBeginning},
-    display_map::{DisplayRow, Inlay},
+    display_map::DisplayRow,
     test::{
         editor_content_with_blocks, editor_lsp_test_context::EditorLspTestContext,
         editor_test_context::EditorTestContext,
@@ -842,7 +842,6 @@ async fn test_random_diagnostics_with_inlays(cx: &mut TestAppContext, mut rng: S
     let mut updated_language_servers = HashSet::default();
     let mut current_diagnostics: HashMap<(PathBuf, LanguageServerId), Vec<lsp::Diagnostic>> =
         Default::default();
-    let mut next_inlay_id = 0;
 
     for _ in 0..operations {
         match rng.gen_range(0..100) {
@@ -873,11 +872,7 @@ async fn test_random_diagnostics_with_inlays(cx: &mut TestAppContext, mut rng: S
 
                         editor.splice_inlays(
                             &[],
-                            vec![Inlay::edit_prediction(
-                                post_inc(&mut next_inlay_id),
-                                snapshot.buffer_snapshot.anchor_before(position),
-                                Rope::from_iter(["Test inlay ", "next_inlay_id"]),
-                            )],
+                            vec![],
                             cx,
                         );
                     }

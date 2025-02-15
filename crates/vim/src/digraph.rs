@@ -54,7 +54,7 @@ impl Vim {
     ) {
         let text = lookup_digraph(first_char, second_char, cx);
 
-        self.pop_operator(window, cx);
+        self.pop_operator(cx);
         if self.editor_input_enabled() {
             self.update_editor(cx, |_, editor, cx| editor.insert(&text, window, cx));
         } else {
@@ -92,7 +92,7 @@ impl Vim {
         if prefix.len() > 0 {
             self.handle_literal_input(prefix, "", window, cx);
         } else {
-            self.pop_operator(window, cx);
+            self.pop_operator(cx);
         }
 
         // give another chance to handle the binding outside
@@ -183,12 +183,11 @@ impl Vim {
             }
         };
 
-        self.pop_operator(window, cx);
+        self.pop_operator(cx);
         self.push_operator(
             Operator::Literal {
                 prefix: Some(prefix),
             },
-            window,
             cx,
         );
     }
@@ -200,7 +199,7 @@ impl Vim {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.pop_operator(window, cx);
+        self.pop_operator(cx);
         let mut text = String::new();
         if let Some(c) = ch {
             if c == '\n' {

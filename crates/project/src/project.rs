@@ -1,7 +1,6 @@
 pub mod buffer_store;
 mod color_extractor;
 pub mod connection_manager;
-pub mod context_server_store;
 pub mod debounced_delay;
 pub mod debugger;
 pub mod git_store;
@@ -24,7 +23,6 @@ mod project_tests;
 mod direnv;
 mod environment;
 use buffer_diff::BufferDiff;
-use context_server_store::ContextServerStore;
 pub use environment::{EnvironmentErrorMessage, ProjectEnvironmentEvent};
 use git::repository::get_git_committer;
 use git_store::{Repository, RepositoryId};
@@ -96,7 +94,7 @@ use rpc::{
 };
 use search::{SearchInputKind, SearchQuery, SearchResult};
 use search_history::SearchHistory;
-use settings::{InvalidSettingsError, Settings, SettingsLocation, SettingsSources, SettingsStore};
+use settings::{InvalidSettingsError, Settings, SettingsLocation, SettingsStore};
 use smol::channel::Receiver;
 use snippet::Snippet;
 use snippet_provider::SnippetProvider;
@@ -189,7 +187,6 @@ pub struct Project {
     client_subscriptions: Vec<client::Subscription>,
     worktree_store: Entity<WorktreeStore>,
     buffer_store: Entity<BufferStore>,
-    context_server_store: Entity<ContextServerStore>,
     image_store: Entity<ImageStore>,
     lsp_store: Entity<LspStore>,
     _subscriptions: Vec<gpui::Subscription>,
@@ -948,43 +945,10 @@ pub enum PulledDiagnostics {
     },
 }
 
-/// Whether to disable all AI features in Zed.
-///
-/// Default: false
-#[derive(Copy, Clone, Debug)]
-pub struct DisableAiSettings {
-    pub disable_ai: bool,
-}
-
-impl settings::Settings for DisableAiSettings {
-    const KEY: Option<&'static str> = Some("disable_ai");
-
-    type FileContent = Option<bool>;
-
-    fn load(sources: SettingsSources<Self::FileContent>, _: &mut App) -> Result<Self> {
-        // For security reasons, settings can only make AI restrictions MORE strict, not less.
-        // (For example, if someone is working on a project that contractually
-        // requires no AI use, that should override the user's setting which
-        // permits AI use.)
-        // This also prevents an attacker from using project or server settings to enable AI when it should be disabled.
-        let disable_ai = sources
-            .project
-            .iter()
-            .chain(sources.user.iter())
-            .chain(sources.server.iter())
-            .any(|disabled| **disabled == Some(true));
-
-        Ok(Self { disable_ai })
-    }
-
-    fn import_from_vscode(_vscode: &settings::VsCodeSettings, _current: &mut Self::FileContent) {}
-}
-
 impl Project {
     pub fn init_settings(cx: &mut App) {
         WorktreeSettings::register(cx);
         ProjectSettings::register(cx);
-        DisableAiSettings::register(cx);
     }
 
     pub fn init(client: &Arc<Client>, cx: &mut App) {
@@ -1016,7 +980,6 @@ impl Project {
         ToolchainStore::init(&client);
         DapStore::init(&client, cx);
         BreakpointStore::init(&client);
-        context_server_store::init(cx);
     }
 
     pub fn local(
@@ -1036,10 +999,6 @@ impl Project {
             let worktree_store = cx.new(|_| WorktreeStore::local(false, fs.clone()));
             cx.subscribe(&worktree_store, Self::on_worktree_store_event)
                 .detach();
-
-            let weak_self = cx.weak_entity();
-            let context_server_store =
-                cx.new(|cx| ContextServerStore::new(worktree_store.clone(), weak_self, cx));
 
             let environment = cx.new(|_| ProjectEnvironment::new(env));
             let manifest_tree = ManifestTree::new(worktree_store.clone(), cx);
@@ -1144,7 +1103,6 @@ impl Project {
                 buffer_store,
                 image_store,
                 lsp_store,
-                context_server_store,
                 join_project_response_message_id: 0,
                 client_state: ProjectClientState::Local,
                 git_store,
@@ -1206,10 +1164,6 @@ impl Project {
             });
             cx.subscribe(&worktree_store, Self::on_worktree_store_event)
                 .detach();
-
-            let weak_self = cx.weak_entity();
-            let context_server_store =
-                cx.new(|cx| ContextServerStore::new(worktree_store.clone(), weak_self, cx));
 
             let buffer_store = cx.new(|cx| {
                 BufferStore::remote(
@@ -1296,7 +1250,6 @@ impl Project {
                 buffer_store,
                 image_store,
                 lsp_store,
-                context_server_store,
                 breakpoint_store,
                 dap_store,
                 join_project_response_message_id: 0,
@@ -1535,10 +1488,6 @@ impl Project {
 
             let snippets = SnippetProvider::new(fs.clone(), BTreeSet::from_iter([]), cx);
 
-            let weak_self = cx.weak_entity();
-            let context_server_store =
-                cx.new(|cx| ContextServerStore::new(worktree_store.clone(), weak_self, cx));
-
             let mut worktrees = Vec::new();
             for worktree in response.payload.worktrees {
                 let worktree =
@@ -1567,7 +1516,6 @@ impl Project {
                 image_store,
                 worktree_store: worktree_store.clone(),
                 lsp_store: lsp_store.clone(),
-                context_server_store,
                 active_entry: None,
                 collaborators: Default::default(),
                 join_project_response_message_id: response.message_id,
@@ -1698,14 +1646,11 @@ impl Project {
         root_paths: impl IntoIterator<Item = &Path>,
         cx: &mut AsyncApp,
     ) -> Entity<Project> {
-        use clock::FakeSystemClock;
-
         let fs = Arc::new(RealFs::new(None, cx.background_executor().clone()));
         let languages = LanguageRegistry::test(cx.background_executor().clone());
-        let clock = Arc::new(FakeSystemClock::new());
         let http_client = http_client::FakeHttpClient::with_404_response();
         let client = cx
-            .update(|cx| client::Client::new(clock, http_client.clone(), cx))
+            .update(|cx| client::Client::new(http_client.clone(), cx))
             .unwrap();
         let user_store = cx.new(|cx| UserStore::new(client.clone(), cx)).unwrap();
         let project = cx
@@ -1742,12 +1687,9 @@ impl Project {
         root_paths: impl IntoIterator<Item = &Path>,
         cx: &mut gpui::TestAppContext,
     ) -> Entity<Project> {
-        use clock::FakeSystemClock;
-
         let languages = LanguageRegistry::test(cx.executor());
-        let clock = Arc::new(FakeSystemClock::new());
         let http_client = http_client::FakeHttpClient::with_404_response();
-        let client = cx.update(|cx| client::Client::new(clock, http_client.clone(), cx));
+        let client = cx.update(|cx| client::Client::new(http_client.clone(), cx));
         let user_store = cx.new(|cx| UserStore::new(client.clone(), cx));
         let project = cx.update(|cx| {
             Project::local(
@@ -1797,10 +1739,6 @@ impl Project {
 
     pub fn worktree_store(&self) -> Entity<WorktreeStore> {
         self.worktree_store.clone()
-    }
-
-    pub fn context_server_store(&self) -> Entity<ContextServerStore> {
-        self.context_server_store.clone()
     }
 
     pub fn buffer_for_id(&self, remote_id: BufferId, cx: &App) -> Option<Entity<Buffer>> {
@@ -3097,9 +3035,6 @@ impl Project {
             WorktreeStoreEvent::WorktreeOrderChanged => cx.emit(Event::WorktreeOrderChanged),
             WorktreeStoreEvent::WorktreeUpdateSent(_) => {}
             WorktreeStoreEvent::WorktreeUpdatedEntries(worktree_id, changes) => {
-                self.client()
-                    .telemetry()
-                    .report_discovered_project_type_events(*worktree_id, changes);
                 cx.emit(Event::WorktreeUpdatedEntries(*worktree_id, changes.clone()))
             }
             WorktreeStoreEvent::WorktreeDeletedEntry(worktree_id, id) => {
@@ -5512,154 +5447,4 @@ fn provide_inline_values(
     }
 
     variables
-}
-
-#[cfg(test)]
-mod disable_ai_settings_tests {
-    use super::*;
-    use gpui::TestAppContext;
-    use settings::{Settings, SettingsSources};
-
-    #[gpui::test]
-    async fn test_disable_ai_settings_security(cx: &mut TestAppContext) {
-        cx.update(|cx| {
-            // Test 1: Default is false (AI enabled)
-            let sources = SettingsSources {
-                default: &Some(false),
-                global: None,
-                extensions: None,
-                user: None,
-                release_channel: None,
-                operating_system: None,
-                profile: None,
-                server: None,
-                project: &[],
-            };
-            let settings = DisableAiSettings::load(sources, cx).unwrap();
-            assert_eq!(settings.disable_ai, false, "Default should allow AI");
-
-            // Test 2: Global true, local false -> still disabled (local cannot re-enable)
-            let global_true = Some(true);
-            let local_false = Some(false);
-            let sources = SettingsSources {
-                default: &Some(false),
-                global: None,
-                extensions: None,
-                user: Some(&global_true),
-                release_channel: None,
-                operating_system: None,
-                profile: None,
-                server: None,
-                project: &[&local_false],
-            };
-            let settings = DisableAiSettings::load(sources, cx).unwrap();
-            assert_eq!(
-                settings.disable_ai, true,
-                "Local false cannot override global true"
-            );
-
-            // Test 3: Global false, local true -> disabled (local can make more restrictive)
-            let global_false = Some(false);
-            let local_true = Some(true);
-            let sources = SettingsSources {
-                default: &Some(false),
-                global: None,
-                extensions: None,
-                user: Some(&global_false),
-                release_channel: None,
-                operating_system: None,
-                profile: None,
-                server: None,
-                project: &[&local_true],
-            };
-            let settings = DisableAiSettings::load(sources, cx).unwrap();
-            assert_eq!(
-                settings.disable_ai, true,
-                "Local true can override global false"
-            );
-
-            // Test 4: Server can only make more restrictive (set to true)
-            let user_false = Some(false);
-            let server_true = Some(true);
-            let sources = SettingsSources {
-                default: &Some(false),
-                global: None,
-                extensions: None,
-                user: Some(&user_false),
-                release_channel: None,
-                operating_system: None,
-                profile: None,
-                server: Some(&server_true),
-                project: &[],
-            };
-            let settings = DisableAiSettings::load(sources, cx).unwrap();
-            assert_eq!(
-                settings.disable_ai, true,
-                "Server can set to true even if user is false"
-            );
-
-            // Test 5: Server false cannot override user true
-            let user_true = Some(true);
-            let server_false = Some(false);
-            let sources = SettingsSources {
-                default: &Some(false),
-                global: None,
-                extensions: None,
-                user: Some(&user_true),
-                release_channel: None,
-                operating_system: None,
-                profile: None,
-                server: Some(&server_false),
-                project: &[],
-            };
-            let settings = DisableAiSettings::load(sources, cx).unwrap();
-            assert_eq!(
-                settings.disable_ai, true,
-                "Server false cannot override user true"
-            );
-
-            // Test 6: Multiple local settings, any true disables AI
-            let global_false = Some(false);
-            let local_false3 = Some(false);
-            let local_true2 = Some(true);
-            let local_false4 = Some(false);
-            let sources = SettingsSources {
-                default: &Some(false),
-                global: None,
-                extensions: None,
-                user: Some(&global_false),
-                release_channel: None,
-                operating_system: None,
-                profile: None,
-                server: None,
-                project: &[&local_false3, &local_true2, &local_false4],
-            };
-            let settings = DisableAiSettings::load(sources, cx).unwrap();
-            assert_eq!(
-                settings.disable_ai, true,
-                "Any local true should disable AI"
-            );
-
-            // Test 7: All three sources can independently disable AI
-            let user_false2 = Some(false);
-            let server_false2 = Some(false);
-            let local_true3 = Some(true);
-            let sources = SettingsSources {
-                default: &Some(false),
-                global: None,
-                extensions: None,
-                user: Some(&user_false2),
-                release_channel: None,
-                operating_system: None,
-                profile: None,
-                server: Some(&server_false2),
-                project: &[&local_true3],
-            };
-            let settings = DisableAiSettings::load(sources, cx).unwrap();
-            assert_eq!(
-                settings.disable_ai, true,
-                "Local can disable even if user and server are false"
-            );
-        });
-    }
 }
