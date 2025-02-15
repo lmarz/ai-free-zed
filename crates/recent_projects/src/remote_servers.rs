@@ -272,7 +272,6 @@ impl ProjectPicker {
                     let window = cx
                         .open_window(options, |window, cx| {
                             cx.new(|cx| {
-                                telemetry::event!("SSH Project Created");
                                 Workspace::new(None, project.clone(), app_state.clone(), window, cx)
                             })
                         })
@@ -686,7 +685,6 @@ impl RemoteServerProjects {
                 Some(Some(client)) => this
                     .update_in(cx, |this, window, cx| {
                         info!("ssh server created");
-                        telemetry::event!("SSH Server Created");
                         this.retained_connections.push(client);
                         this.add_ssh_server(connection_options, cx);
                         this.mode = Mode::default_mode(&this.ssh_config_servers, cx);

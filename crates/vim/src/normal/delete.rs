@@ -84,7 +84,6 @@ impl Vim {
                         selection.collapse_to(cursor, selection.goal)
                     });
                 });
-                editor.refresh_edit_prediction(true, false, window, cx);
             });
         });
     }
@@ -192,7 +191,6 @@ impl Vim {
                         selection.collapse_to(cursor, selection.goal)
                     });
                 });
-                editor.refresh_edit_prediction(true, false, window, cx);
             });
         });
     }
