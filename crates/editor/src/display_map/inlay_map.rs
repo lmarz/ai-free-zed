@@ -12,9 +12,9 @@ use std::{
 };
 use sum_tree::{Bias, Cursor, Dimensions, SumTree};
 use text::{ChunkBitmaps, Patch, Rope};
-use ui::{ActiveTheme, IntoElement as _, ParentElement as _, Styled as _, div};
+use ui::{div, ActiveTheme, IntoElement as _, ParentElement as _, Styled as _};
 
-use super::{Highlights, custom_highlights::CustomHighlightsChunks, fold_map::ChunkRendererId};
+use super::{custom_highlights::CustomHighlightsChunks, fold_map::ChunkRendererId, Highlights};
 
 /// Decides where the [`Inlay`]s should be displayed.
 ///
@@ -80,14 +80,6 @@ impl Inlay {
             id: InlayId::Color(id),
             position,
             content: InlayContent::Color(color.into()),
-        }
-    }
-
-    pub fn edit_prediction<T: Into<Rope>>(id: u32, position: Anchor, text: T) -> Self {
-        Self {
-            id: InlayId::EditPrediction(id),
-            position,
-            content: InlayContent::Text(text.into()),
         }
     }
 
@@ -306,7 +298,7 @@ impl<'a> Iterator for InlayChunks<'a> {
                     *chunk = self.buffer_chunks.next().unwrap();
                 }
 
-                let desired_bytes = self.transforms.end().0.0 - self.output_offset.0;
+                let desired_bytes = self.transforms.end().0 .0 - self.output_offset.0;
 
                 // If we're already at the transform boundary, skip to the next transform
                 if desired_bytes == 0 {
@@ -364,13 +356,6 @@ impl<'a> Iterator for InlayChunks<'a> {
 
                 let mut renderer = None;
                 let mut highlight_style = match inlay.id {
-                    InlayId::EditPrediction(_) => self.highlight_styles.edit_prediction.map(|s| {
-                        if inlay.text().chars().all(|c| c.is_whitespace()) {
-                            s.whitespace
-                        } else {
-                            s.insertion
-                        }
-                    }),
                     InlayId::Hint(_) => self.highlight_styles.inlay_hint,
                     InlayId::DebuggerValue(_) => self.highlight_styles.inlay_hint,
                     InlayId::Color(_) => {
@@ -504,7 +489,7 @@ impl InlayBufferRows<'_> {
         } else {
             match self.transforms.item() {
                 Some(Transform::Isomorphic(_)) => {
-                    buffer_point += inlay_point.0 - self.transforms.start().0.0;
+                    buffer_point += inlay_point.0 - self.transforms.start().0 .0;
                     buffer_point.row
                 }
                 _ => cmp::min(buffer_point.row + 1, self.max_buffer_row.0),
@@ -764,7 +749,7 @@ impl InlayMap {
         let mut to_remove = Vec::new();
         let mut to_insert = Vec::new();
         let snapshot = &mut self.snapshot;
-        for i in 0..rng.random_range(1..=5) {
+        for _ in 0..rng.random_range(1..=5) {
             if self.inlays.is_empty() || rng.random() {
                 let position = snapshot.buffer.random_byte_range(0, rng).start;
                 let bias = if rng.random() {
@@ -782,19 +767,11 @@ impl InlayMap {
                     .take(len)
                     .collect::<String>();
 
-                let next_inlay = if i % 2 == 0 {
-                    Inlay::mock_hint(
-                        post_inc(next_inlay_id),
-                        snapshot.buffer.anchor_at(position, bias),
-                        &text,
-                    )
-                } else {
-                    Inlay::edit_prediction(
-                        post_inc(next_inlay_id),
-                        snapshot.buffer.anchor_at(position, bias),
-                        &text,
-                    )
-                };
+                let next_inlay = Inlay::mock_hint(
+                    post_inc(next_inlay_id),
+                    snapshot.buffer.anchor_at(position, bias),
+                    &text,
+                );
                 let inlay_id = next_inlay.id;
                 log::info!(
                     "creating inlay {inlay_id:?} at buffer offset {position} with bias {bias:?} and text {text:?}"
@@ -823,14 +800,14 @@ impl InlaySnapshot {
             .transforms
             .cursor::<Dimensions<InlayOffset, InlayPoint, usize>>(());
         cursor.seek(&offset, Bias::Right);
-        let overshoot = offset.0 - cursor.start().0.0;
+        let overshoot = offset.0 - cursor.start().0 .0;
         match cursor.item() {
             Some(Transform::Isomorphic(_)) => {
                 let buffer_offset_start = cursor.start().2;
                 let buffer_offset_end = buffer_offset_start + overshoot;
                 let buffer_start = self.buffer.offset_to_point(buffer_offset_start);
                 let buffer_end = self.buffer.offset_to_point(buffer_offset_end);
-                InlayPoint(cursor.start().1.0 + (buffer_end - buffer_start))
+                InlayPoint(cursor.start().1 .0 + (buffer_end - buffer_start))
             }
             Some(Transform::Inlay(inlay)) => {
                 let overshoot = inlay.text().offset_to_point(overshoot);
@@ -853,14 +830,14 @@ impl InlaySnapshot {
             .transforms
             .cursor::<Dimensions<InlayPoint, InlayOffset, Point>>(());
         cursor.seek(&point, Bias::Right);
-        let overshoot = point.0 - cursor.start().0.0;
+        let overshoot = point.0 - cursor.start().0 .0;
         match cursor.item() {
             Some(Transform::Isomorphic(_)) => {
                 let buffer_point_start = cursor.start().2;
                 let buffer_point_end = buffer_point_start + overshoot;
                 let buffer_offset_start = self.buffer.point_to_offset(buffer_point_start);
                 let buffer_offset_end = self.buffer.point_to_offset(buffer_point_end);
-                InlayOffset(cursor.start().1.0 + (buffer_offset_end - buffer_offset_start))
+                InlayOffset(cursor.start().1 .0 + (buffer_offset_end - buffer_offset_start))
             }
             Some(Transform::Inlay(inlay)) => {
                 let overshoot = inlay.text().point_to_offset(overshoot);
@@ -874,7 +851,7 @@ impl InlaySnapshot {
         cursor.seek(&point, Bias::Right);
         match cursor.item() {
             Some(Transform::Isomorphic(_)) => {
-                let overshoot = point.0 - cursor.start().0.0;
+                let overshoot = point.0 - cursor.start().0 .0;
                 cursor.start().1 + overshoot
             }
             Some(Transform::Inlay(_)) => cursor.start().1,
@@ -911,7 +888,7 @@ impl InlaySnapshot {
                         return cursor.end().1;
                     } else {
                         let overshoot = offset - cursor.start().0;
-                        return InlayOffset(cursor.start().1.0 + overshoot);
+                        return InlayOffset(cursor.start().1 .0 + overshoot);
                     }
                 }
                 Some(Transform::Inlay(inlay)) => {
@@ -944,7 +921,7 @@ impl InlaySnapshot {
                         return cursor.end().1;
                     } else {
                         let overshoot = point - cursor.start().0;
-                        return InlayPoint(cursor.start().1.0 + overshoot);
+                        return InlayPoint(cursor.start().1 .0 + overshoot);
                     }
                 }
                 Some(Transform::Inlay(inlay)) => {
@@ -997,11 +974,11 @@ impl InlaySnapshot {
                             return point;
                         }
                     } else {
-                        let overshoot = point.0 - cursor.start().0.0;
+                        let overshoot = point.0 - cursor.start().0 .0;
                         let buffer_point = cursor.start().1 + overshoot;
                         let clipped_buffer_point = self.buffer.clip_point(buffer_point, bias);
                         let clipped_overshoot = clipped_buffer_point - cursor.start().1;
-                        let clipped_point = InlayPoint(cursor.start().0.0 + clipped_overshoot);
+                        let clipped_point = InlayPoint(cursor.start().0 .0 + clipped_overshoot);
                         if clipped_point == point {
                             return clipped_point;
                         } else {
@@ -1062,13 +1039,13 @@ impl InlaySnapshot {
         let mut cursor = self.transforms.cursor::<Dimensions<InlayOffset, usize>>(());
         cursor.seek(&range.start, Bias::Right);
 
-        let overshoot = range.start.0 - cursor.start().0.0;
+        let overshoot = range.start.0 - cursor.start().0 .0;
         match cursor.item() {
             Some(Transform::Isomorphic(_)) => {
                 let buffer_start = cursor.start().1;
                 let suffix_start = buffer_start + overshoot;
                 let suffix_end =
-                    buffer_start + (cmp::min(cursor.end().0, range.end).0 - cursor.start().0.0);
+                    buffer_start + (cmp::min(cursor.end().0, range.end).0 - cursor.start().0 .0);
                 summary = self.buffer.text_summary_for_range(suffix_start..suffix_end);
                 cursor.next();
             }
@@ -1086,7 +1063,7 @@ impl InlaySnapshot {
                 .summary::<_, TransformSummary>(&range.end, Bias::Right)
                 .output;
 
-            let overshoot = range.end.0 - cursor.start().0.0;
+            let overshoot = range.end.0 - cursor.start().0 .0;
             match cursor.item() {
                 Some(Transform::Isomorphic(_)) => {
                     let prefix_start = cursor.start().1;
@@ -1118,7 +1095,7 @@ impl InlaySnapshot {
         } else {
             match cursor.item() {
                 Some(Transform::Isomorphic(_)) => {
-                    buffer_point += inlay_point.0 - cursor.start().0.0;
+                    buffer_point += inlay_point.0 - cursor.start().0 .0;
                     MultiBufferRow(buffer_point.row)
                 }
                 _ => cmp::min(MultiBufferRow(buffer_point.row + 1), max_buffer_row),
@@ -1250,9 +1227,9 @@ const fn is_utf8_char_boundary(byte: u8) -> bool {
 mod tests {
     use super::*;
     use crate::{
-        InlayId, MultiBuffer,
         display_map::{HighlightKey, InlayHighlights, TextHighlights},
         hover_links::InlayHighlight,
+        InlayId, MultiBuffer,
     };
     use gpui::{App, HighlightStyle};
     use project::{InlayHint, InlayHintLabel, ResolveState};
@@ -1261,8 +1238,8 @@ mod tests {
     use std::{any::TypeId, cmp::Reverse, env, sync::Arc};
     use sum_tree::TreeMap;
     use text::Patch;
-    use util::RandomCharIter;
     use util::post_inc;
+    use util::RandomCharIter;
 
     #[test]
     fn test_inlay_properties_label_padding() {
@@ -1456,18 +1433,11 @@ mod tests {
 
         let (inlay_snapshot, _) = inlay_map.splice(
             &[],
-            vec![
-                Inlay::mock_hint(
-                    post_inc(&mut next_inlay_id),
-                    buffer.read(cx).snapshot(cx).anchor_before(3),
-                    "|123|",
-                ),
-                Inlay::edit_prediction(
-                    post_inc(&mut next_inlay_id),
-                    buffer.read(cx).snapshot(cx).anchor_after(3),
-                    "|456|",
-                ),
-            ],
+            vec![Inlay::mock_hint(
+                post_inc(&mut next_inlay_id),
+                buffer.read(cx).snapshot(cx).anchor_before(3),
+                "|123|",
+            )],
         );
         assert_eq!(inlay_snapshot.text(), "abx|123||456|yDzefghi");
 
@@ -1681,11 +1651,6 @@ mod tests {
                     post_inc(&mut next_inlay_id),
                     buffer.read(cx).snapshot(cx).anchor_before(4),
                     "|456|",
-                ),
-                Inlay::edit_prediction(
-                    post_inc(&mut next_inlay_id),
-                    buffer.read(cx).snapshot(cx).anchor_before(7),
-                    "\n|567|\n",
                 ),
             ],
         );

@@ -41,7 +41,7 @@ impl Vim {
     ) {
         if self.active_operator().is_some() {
             self.operator_stack.clear();
-            self.sync_vim_settings(window, cx);
+            self.sync_vim_settings(cx);
             return;
         }
         let count = Vim::take_count(cx).unwrap_or(1);

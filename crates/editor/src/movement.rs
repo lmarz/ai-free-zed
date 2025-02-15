@@ -866,15 +866,14 @@ pub fn split_display_range_by_lines(
 mod tests {
     use super::*;
     use crate::{
-        Buffer, DisplayMap, DisplayRow, ExcerptRange, FoldPlaceholder, MultiBuffer,
-        display_map::Inlay,
+        Buffer, DisplayMap, DisplayRow, ExcerptRange, FoldPlaceholder, Inlay, MultiBuffer,
+        post_inc,
         test::{editor_test_context::EditorTestContext, marked_display_snapshot},
     };
     use gpui::{AppContext as _, font, px};
     use language::Capability;
     use project::{Project, project_settings::DiagnosticSeverity};
     use settings::SettingsStore;
-    use util::post_inc;
 
     #[gpui::test]
     fn test_previous_word_start(cx: &mut gpui::App) {
@@ -1016,16 +1015,6 @@ mod tests {
         let inlays = (0..buffer_snapshot.len())
             .flat_map(|offset| {
                 [
-                    Inlay::edit_prediction(
-                        post_inc(&mut id),
-                        buffer_snapshot.anchor_before(offset),
-                        "test",
-                    ),
-                    Inlay::edit_prediction(
-                        post_inc(&mut id),
-                        buffer_snapshot.anchor_after(offset),
-                        "test",
-                    ),
                     Inlay::mock_hint(
                         post_inc(&mut id),
                         buffer_snapshot.anchor_before(offset),

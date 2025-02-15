@@ -25,7 +25,6 @@ use workspace::{
     open_new, register_serializable_item, with_active_or_new_workspace,
 };
 
-mod ai_setup_page;
 mod base_keymap_picker;
 mod basics_page;
 mod editing_page;
@@ -193,7 +192,6 @@ pub fn init(cx: &mut App) {
 }
 
 pub fn show_onboarding_view(app_state: Arc<AppState>, cx: &mut App) -> Task<anyhow::Result<()>> {
-    telemetry::event!("Onboarding Page Opened");
     open_new(
         Default::default(),
         app_state,
@@ -219,17 +217,6 @@ pub fn show_onboarding_view(app_state: Arc<AppState>, cx: &mut App) -> Task<anyh
 enum SelectedPage {
     Basics,
     Editing,
-    AiSetup,
-}
-
-impl SelectedPage {
-    fn name(&self) -> &'static str {
-        match self {
-            SelectedPage::Basics => "Basics",
-            SelectedPage::Editing => "Editing",
-            SelectedPage::AiSetup => "AI Setup",
-        }
-    }
 }
 
 struct Onboarding {
@@ -266,21 +253,7 @@ impl Onboarding {
         })
     }
 
-    fn set_page(
-        &mut self,
-        page: SelectedPage,
-        clicked: Option<&'static str>,
-        cx: &mut Context<Self>,
-    ) {
-        if let Some(click) = clicked {
-            telemetry::event!(
-                "Welcome Tab Clicked",
-                from = self.selected_page.name(),
-                to = page.name(),
-                clicked = click,
-            );
-        }
-
+    fn set_page(&mut self, page: SelectedPage, cx: &mut Context<Self>) {
         self.selected_page = page;
         self.scroll_handle.set_offset(Default::default());
         cx.notify();
@@ -291,20 +264,12 @@ impl Onboarding {
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> [impl IntoElement; 3] {
-        let pages = [
-            SelectedPage::Basics,
-            SelectedPage::Editing,
-            SelectedPage::AiSetup,
-        ];
+    ) -> [impl IntoElement; 2] {
+        let pages = [SelectedPage::Basics, SelectedPage::Editing];
 
-        let text = ["Basics", "Editing", "AI Setup"];
+        let text = ["Basics", "Editing"];
 
-        let actions: [&dyn Action; 3] = [
-            &ActivateBasicsPage,
-            &ActivateEditingPage,
-            &ActivateAISetupPage,
-        ];
+        let actions: [&dyn Action; 2] = [&ActivateBasicsPage, &ActivateEditingPage];
 
         let mut binding = actions.map(|action| {
             KeyBinding::for_action_in(action, &self.focus_handle, window, cx)
@@ -345,13 +310,8 @@ impl Onboarding {
                     gpui::Empty.into_any_element(),
                     IntoElement::into_any_element,
                 ))
-                .on_click(cx.listener(move |this, click_event, _, cx| {
-                    let click = match click_event {
-                        gpui::ClickEvent::Mouse(_) => "mouse",
-                        gpui::ClickEvent::Keyboard(_) => "keyboard",
-                    };
-
-                    this.set_page(page, Some(click), cx);
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.set_page(page, cx);
                 }))
         })
     }
@@ -462,7 +422,6 @@ impl Onboarding {
                                                     ),
                                             )
                                             .on_click(|_, window, cx| {
-                                                telemetry::event!("Welcome Sign In Clicked");
                                                 window.dispatch_action(SignIn.boxed_clone(), cx);
                                             }),
                                     )
@@ -480,14 +439,12 @@ impl Onboarding {
                             .map(|kb| kb.size(rems_from_px(12.))),
                     )
                     .on_click(|_, window, cx| {
-                        telemetry::event!("Welcome Start Building Clicked");
                         window.dispatch_action(Finish.boxed_clone(), cx);
                     })
             })
     }
 
     fn on_finish(_: &Finish, _: &mut Window, cx: &mut App) {
-        telemetry::event!("Welcome Skip Clicked");
         go_to_welcome_page(cx);
     }
 
@@ -509,21 +466,12 @@ impl Onboarding {
     }
 
     fn render_page(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let client = Client::global(cx);
-
         match self.selected_page {
             SelectedPage::Basics => crate::basics_page::render_basics_page(cx).into_any_element(),
             SelectedPage::Editing => {
-                crate::editing_page::render_editing_page(window, cx).into_any_element()
+                { crate::editing_page::render_editing_page(window, cx).into_any_element() }
+                    .into_any_element()
             }
-            SelectedPage::AiSetup => crate::ai_setup_page::render_ai_setup_page(
-                self.workspace.clone(),
-                self.user_store.clone(),
-                client,
-                window,
-                cx,
-            )
-            .into_any_element(),
         }
     }
 }
@@ -545,13 +493,10 @@ impl Render for Onboarding {
             .on_action(Self::handle_sign_in)
             .on_action(Self::handle_open_account)
             .on_action(cx.listener(|this, _: &ActivateBasicsPage, _, cx| {
-                this.set_page(SelectedPage::Basics, Some("action"), cx);
+                this.set_page(SelectedPage::Basics, cx);
             }))
             .on_action(cx.listener(|this, _: &ActivateEditingPage, _, cx| {
-                this.set_page(SelectedPage::Editing, Some("action"), cx);
-            }))
-            .on_action(cx.listener(|this, _: &ActivateAISetupPage, _, cx| {
-                this.set_page(SelectedPage::AiSetup, Some("action"), cx);
+                this.set_page(SelectedPage::Editing, cx);
             }))
             .on_action(cx.listener(|_, _: &menu::SelectNext, window, cx| {
                 window.focus_next();
@@ -819,7 +764,6 @@ impl workspace::SerializableItem for Onboarding {
                 let page = match page_number {
                     0 => Some(SelectedPage::Basics),
                     1 => Some(SelectedPage::Editing),
-                    2 => Some(SelectedPage::AiSetup),
                     _ => None,
                 };
                 workspace.update(cx, |workspace, cx| {
@@ -827,7 +771,7 @@ impl workspace::SerializableItem for Onboarding {
                     if let Some(page) = page {
                         zlog::info!("Onboarding page {page:?} loaded");
                         onboarding_page.update(cx, |onboarding_page, cx| {
-                            onboarding_page.set_page(page, None, cx);
+                            onboarding_page.set_page(page, cx);
                         })
                     }
                     onboarding_page

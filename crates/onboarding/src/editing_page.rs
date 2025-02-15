@@ -9,12 +9,11 @@ use gpui::{
 use language::language_settings::{AllLanguageSettings, FormatOnSave};
 use picker::{Picker, PickerDelegate};
 use project::project_settings::ProjectSettings;
-use settings::{Settings as _, update_settings_file};
+use settings::{update_settings_file, Settings as _};
 use theme::{FontFamilyCache, FontFamilyName, ThemeSettings};
 use ui::{
-    ButtonLike, ListItem, ListItemSpacing, NumericStepper, PopoverMenu, SwitchField,
+    prelude::*, ButtonLike, ListItem, ListItemSpacing, NumericStepper, PopoverMenu, SwitchField,
     ToggleButtonGroup, ToggleButtonGroupStyle, ToggleButtonSimple, ToggleState, Tooltip,
-    prelude::*,
 };
 
 use crate::{ImportCursorSettings, ImportVsCodeSettings, SettingsImportState};
@@ -35,11 +34,6 @@ fn write_show_mini_map(show: ShowMinimap, cx: &mut App) {
     EditorSettings::override_global(curr_settings, cx);
 
     update_settings_file(fs, cx, move |settings, _| {
-        telemetry::event!(
-            "Welcome Minimap Clicked",
-            from = settings.editor.minimap.clone().unwrap_or_default(),
-            to = show
-        );
         settings.editor.minimap.get_or_insert_default().show = Some(show);
     });
 }
@@ -94,12 +88,6 @@ fn write_ui_font_family(font: SharedString, cx: &mut App) {
     let fs = <dyn Fs>::global(cx);
 
     update_settings_file(fs, cx, move |settings, _| {
-        telemetry::event!(
-            "Welcome Font Changed",
-            type = "ui font",
-            old = settings.theme.ui_font_family,
-            new = font
-        );
         settings.theme.ui_font_family = Some(FontFamilyName(font.into()));
     });
 }
@@ -124,13 +112,6 @@ fn write_buffer_font_family(font_family: SharedString, cx: &mut App) {
     let fs = <dyn Fs>::global(cx);
 
     update_settings_file(fs, cx, move |settings, _| {
-        telemetry::event!(
-            "Welcome Font Changed",
-            type = "editor font",
-            old = settings.theme.buffer_font_family,
-            new = font_family
-        );
-
         settings.theme.buffer_font_family = Some(FontFamilyName(font_family.into()));
     });
 }
@@ -226,7 +207,6 @@ fn render_setting_import_button(
                     }),
             )
             .on_click(move |_, window, cx| {
-                telemetry::event!("Welcome Import Settings", import_source = label,);
                 window.dispatch_action(action.boxed_clone(), cx);
             }),
     )
@@ -622,10 +602,6 @@ fn render_popular_settings_section(
                 },
                 |toggle_state, _, cx| {
                     let enabled = toggle_state == &ToggleState::Selected;
-                    telemetry::event!(
-                        "Welcome Font Ligature",
-                        options = if enabled { "on" } else { "off" },
-                    );
 
                     write_font_ligatures(enabled, cx);
                 },
@@ -648,10 +624,6 @@ fn render_popular_settings_section(
                 },
                 |toggle_state, _, cx| {
                     let enabled = toggle_state == &ToggleState::Selected;
-                    telemetry::event!(
-                        "Welcome Format On Save Changed",
-                        options = if enabled { "on" } else { "off" },
-                    );
 
                     write_format_on_save(enabled, cx);
                 },
@@ -673,10 +645,6 @@ fn render_popular_settings_section(
                 },
                 |toggle_state, _, cx| {
                     let enabled = toggle_state == &ToggleState::Selected;
-                    telemetry::event!(
-                        "Welcome Inlay Hints Changed",
-                        options = if enabled { "on" } else { "off" },
-                    );
 
                     write_inlay_hints(enabled, cx);
                 },
@@ -698,10 +666,6 @@ fn render_popular_settings_section(
                 },
                 |toggle_state, _, cx| {
                     let enabled = toggle_state == &ToggleState::Selected;
-                    telemetry::event!(
-                        "Welcome Git Blame Changed",
-                        options = if enabled { "on" } else { "off" },
-                    );
 
                     write_git_blame(enabled, cx);
                 },
