@@ -51,7 +51,6 @@ impl OnboardingBanner {
     }
 
     fn dismiss(&mut self, cx: &mut Context<Self>) {
-        telemetry::event!("Banner Dismissed", source = self.source);
         persist_dismissed(&self.source, cx);
         self.dismissed = true;
         cx.notify();
@@ -135,7 +134,6 @@ impl Render for OnboardingBanner {
                             ),
                     )
                     .on_click(cx.listener(|this, _, window, cx| {
-                        telemetry::event!("Banner Clicked", source = this.source);
                         this.dismiss(cx);
                         window.dispatch_action(this.details.action.boxed_clone(), cx)
                     })),
