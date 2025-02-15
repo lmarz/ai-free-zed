@@ -1,20 +1,18 @@
 use crate::branch_picker::{self, BranchList};
-use crate::git_panel::{GitPanel, commit_message_editor};
+use crate::git_panel::{commit_message_editor, GitPanel};
 use git::repository::CommitOptions;
-use git::{Amend, Commit, GenerateCommitMessage, Signoff};
+use git::{Amend, Commit, Signoff};
 use panel::{panel_button, panel_editor_style};
-use project::DisableAiSettings;
-use settings::Settings;
 use ui::{
-    ContextMenu, KeybindingHint, PopoverMenu, PopoverMenuHandle, SplitButton, Tooltip, prelude::*,
+    prelude::*, ContextMenu, KeybindingHint, PopoverMenu, PopoverMenuHandle, SplitButton, Tooltip,
 };
 
 use editor::{Editor, EditorElement};
 use gpui::*;
 use util::ResultExt;
 use workspace::{
-    ModalView, Workspace,
     dock::{Dock, PanelHandle},
+    ModalView, Workspace,
 };
 
 // nate: It is a pain to get editors to size correctly and not overflow.
@@ -332,7 +330,6 @@ impl CommitModal {
             tooltip,
             commit_label,
             co_authors,
-            generate_commit_message,
             active_repo,
             is_amend_pending,
             is_signoff_enabled,
@@ -340,7 +337,6 @@ impl CommitModal {
             let (can_commit, tooltip) = git_panel.configure_commit_button(cx);
             let title = git_panel.commit_button_title();
             let co_authors = git_panel.render_co_authors(cx);
-            let generate_commit_message = git_panel.render_generate_commit_message_button(cx);
             let active_repo = git_panel.active_repository.clone();
             let is_amend_pending = git_panel.amend_pending();
             let is_signoff_enabled = git_panel.signoff_enabled();
@@ -349,7 +345,6 @@ impl CommitModal {
                 tooltip,
                 title,
                 co_authors,
-                generate_commit_message,
                 active_repo,
                 is_amend_pending,
                 is_signoff_enabled,
@@ -411,7 +406,6 @@ impl CommitModal {
                             .overflow_x_hidden()
                             .child(branch_picker),
                     )
-                    .children(generate_commit_message)
                     .children(co_authors),
             )
             .child(div().flex_1())
@@ -435,7 +429,6 @@ impl CommitModal {
                                 .mr_0p5(),
                         )
                         .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
-                            telemetry::event!("Git Committed", source = "Git Modal");
                             this.git_panel.update(cx, |git_panel, cx| {
                                 git_panel.commit_changes(
                                     CommitOptions {
@@ -492,7 +485,6 @@ impl CommitModal {
         if self.git_panel.read(cx).amend_pending() {
             return;
         }
-        telemetry::event!("Git Committed", source = "Git Modal");
         self.git_panel.update(cx, |git_panel, cx| {
             git_panel.commit_changes(
                 CommitOptions {
@@ -523,7 +515,6 @@ impl CommitModal {
                 git_panel.load_last_commit_message_if_empty(cx);
             });
         } else {
-            telemetry::event!("Git Amended", source = "Git Modal");
             self.git_panel.update(cx, |git_panel, cx| {
                 git_panel.set_amend_pending(false, cx);
                 git_panel.commit_changes(
@@ -562,13 +553,6 @@ impl Render for CommitModal {
             .on_action(cx.listener(Self::dismiss))
             .on_action(cx.listener(Self::commit))
             .on_action(cx.listener(Self::amend))
-            .when(!DisableAiSettings::get_global(cx).disable_ai, |this| {
-                this.on_action(cx.listener(|this, _: &GenerateCommitMessage, _, cx| {
-                    this.git_panel.update(cx, |panel, cx| {
-                        panel.generate_commit_message(cx);
-                    })
-                }))
-            })
             .on_action(
                 cx.listener(|this, _: &zed_actions::git::Branch, window, cx| {
                     this.toggle_branch_selector(window, cx);

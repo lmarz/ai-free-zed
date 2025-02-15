@@ -62,11 +62,6 @@ impl RenderOnce for FeatureUpsell {
                             .icon_position(IconPosition::End)
                             .on_click({
                                 move |_event, _window, cx| {
-                                    telemetry::event!(
-                                        "Documentation Viewed",
-                                        source = "Feature Upsell",
-                                        url = docs_url,
-                                    );
                                     cx.open_url(&docs_url)
                                 }
                             }),

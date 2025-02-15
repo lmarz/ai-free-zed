@@ -40,7 +40,6 @@ worktree.workspace = true
 workspace.workspace = true
 language.workspace = true
 zed_actions.workspace = true
-telemetry.workspace = true
 workspace-hack.workspace = true
 
 [dev-dependencies]

@@ -16,12 +16,6 @@ use crate::{ExtendingVec, merge_from};
 #[skip_serializing_none]
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct AllLanguageSettingsContent {
-    /// The settings for enabling/disabling features.
-    #[serde(default)]
-    pub features: Option<FeaturesContent>,
-    /// The edit prediction settings.
-    #[serde(default)]
-    pub edit_predictions: Option<EditPredictionSettingsContent>,
     /// The default language settings.
     #[serde(flatten)]
     pub defaults: LanguageSettingsContent,
@@ -37,8 +31,6 @@ pub struct AllLanguageSettingsContent {
 impl merge_from::MergeFrom for AllLanguageSettingsContent {
     fn merge_from(&mut self, other: &Self) {
         self.file_types.merge_from(&other.file_types);
-        self.features.merge_from(&other.features);
-        self.edit_predictions.merge_from(&other.edit_predictions);
 
         // A user's global settings override the default global settings and
         // all default language-specific settings.
@@ -60,90 +52,6 @@ impl merge_from::MergeFrom for AllLanguageSettingsContent {
             }
         }
     }
-}
-
-/// The settings for enabling/disabling features.
-#[skip_serializing_none]
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema, MergeFrom)]
-#[serde(rename_all = "snake_case")]
-pub struct FeaturesContent {
-    /// Determines which edit prediction provider to use.
-    pub edit_prediction_provider: Option<EditPredictionProvider>,
-}
-
-/// The provider that supplies edit predictions.
-#[derive(
-    Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum EditPredictionProvider {
-    None,
-    #[default]
-    Copilot,
-    Supermaven,
-    Zed,
-}
-
-impl EditPredictionProvider {
-    pub fn is_zed(&self) -> bool {
-        match self {
-            EditPredictionProvider::Zed => true,
-            EditPredictionProvider::None
-            | EditPredictionProvider::Copilot
-            | EditPredictionProvider::Supermaven => false,
-        }
-    }
-}
-
-/// The contents of the edit prediction settings.
-#[skip_serializing_none]
-#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq)]
-pub struct EditPredictionSettingsContent {
-    /// A list of globs representing files that edit predictions should be disabled for.
-    /// This list adds to a pre-existing, sensible default set of globs.
-    /// Any additional ones you add are combined with them.
-    pub disabled_globs: Option<Vec<String>>,
-    /// The mode used to display edit predictions in the buffer.
-    /// Provider support required.
-    pub mode: Option<EditPredictionsMode>,
-    /// Settings specific to GitHub Copilot.
-    pub copilot: Option<CopilotSettingsContent>,
-    /// Whether edit predictions are enabled in the assistant prompt editor.
-    /// This has no effect if globally disabled.
-    pub enabled_in_text_threads: Option<bool>,
-}
-
-#[skip_serializing_none]
-#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq)]
-pub struct CopilotSettingsContent {
-    /// HTTP/HTTPS proxy to use for Copilot.
-    ///
-    /// Default: none
-    pub proxy: Option<String>,
-    /// Disable certificate verification for the proxy (not recommended).
-    ///
-    /// Default: false
-    pub proxy_no_verify: Option<bool>,
-    /// Enterprise URI for Copilot.
-    ///
-    /// Default: none
-    pub enterprise_uri: Option<String>,
-}
-
-/// The mode in which edit predictions should be displayed.
-#[derive(
-    Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema, MergeFrom,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum EditPredictionsMode {
-    /// If provider supports it, display inline when holding modifier key (e.g., alt).
-    /// Otherwise, eager preview is used.
-    #[serde(alias = "auto")]
-    Subtle,
-    /// Display inline when there are no language server completions available.
-    #[default]
-    #[serde(alias = "eager_preview")]
-    Eager,
 }
 
 /// Controls the soft-wrapping behavior in the editor.
@@ -244,18 +152,6 @@ pub struct LanguageSettingsContent {
     ///
     /// Default: "in_comments"
     pub allow_rewrap: Option<RewrapBehavior>,
-    /// Controls whether edit predictions are shown immediately (true)
-    /// or manually by triggering `editor::ShowEditPrediction` (false).
-    ///
-    /// Default: true
-    pub show_edit_predictions: Option<bool>,
-    /// Controls whether edit predictions are shown in the given language
-    /// scopes.
-    ///
-    /// Example: ["string", "comment"]
-    ///
-    /// Default: []
-    pub edit_predictions_disabled_in: Option<Vec<String>>,
     /// Whether to show tabs and spaces in the editor.
     pub show_whitespaces: Option<ShowWhitespaceSetting>,
     /// Visible characters used to render whitespace when show_whitespaces is enabled.

@@ -2,11 +2,11 @@ pub mod participant;
 pub mod room;
 
 use crate::call_settings::CallSettings;
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{anyhow, Result};
 use audio::Audio;
-use client::{ChannelId, Client, TypedEnvelope, User, UserStore, ZED_ALWAYS_ACTIVE, proto};
+use client::{proto, ChannelId, Client, TypedEnvelope, User, UserStore, ZED_ALWAYS_ACTIVE};
 use collections::HashSet;
-use futures::{Future, FutureExt, channel::oneshot, future::Shared};
+use futures::{channel::oneshot, future::Shared, Future, FutureExt};
 use gpui::{
     App, AppContext as _, AsyncApp, Context, Entity, EventEmitter, Global, Subscription, Task,
     WeakEntity,
@@ -17,7 +17,6 @@ use room::Event;
 use settings::Settings;
 use std::sync::Arc;
 
-pub use livekit_client::{RemoteVideoTrack, RemoteVideoTrackView, RemoteVideoTrackViewEvent};
 pub use participant::ParticipantLocation;
 pub use room::Room;
 
@@ -116,7 +115,7 @@ impl ActiveCall {
         envelope: TypedEnvelope<proto::IncomingCall>,
         mut cx: AsyncApp,
     ) -> Result<proto::Ack> {
-        let user_store = this.read_with(&cx, |this, _| this.user_store.clone())?;
+        let user_store = this.update(&mut cx, |this, _| this.user_store.clone())?;
         let call = IncomingCall {
             room_id: envelope.payload.room_id,
             participants: user_store
@@ -147,7 +146,7 @@ impl ActiveCall {
             let mut incoming_call = this.incoming_call.0.borrow_mut();
             if incoming_call
                 .as_ref()
-                .is_some_and(|call| call.room_id == envelope.payload.room_id)
+                .map_or(false, |call| call.room_id == envelope.payload.room_id)
             {
                 incoming_call.take();
             }
@@ -187,7 +186,7 @@ impl ActiveCall {
 
         let invite = if let Some(room) = room {
             cx.spawn(async move |_, cx| {
-                let room = room.await.map_err(|err| anyhow!("{err:?}"))?;
+                let room = room.await.map_err(|err| anyhow!("{:?}", err))?;
 
                 let initial_project_id = if let Some(initial_project) = initial_project {
                     Some(
@@ -236,7 +235,7 @@ impl ActiveCall {
                 .shared();
             self.pending_room_creation = Some(room.clone());
             cx.background_spawn(async move {
-                room.await.map_err(|err| anyhow!("{err:?}"))?;
+                room.await.map_err(|err| anyhow!("{:?}", err))?;
                 anyhow::Ok(())
             })
         };
@@ -302,9 +301,9 @@ impl ActiveCall {
         let room_id = call.room_id;
         let client = self.client.clone();
         let user_store = self.user_store.clone();
-        let join = self
-            ._join_debouncer
-            .spawn(cx, move |cx| Room::join(room_id, client, user_store, cx));
+        let join = self._join_debouncer.spawn(cx, move |mut cx| async move {
+            Room::join(room_id, client, user_store, &mut cx).await
+        });
 
         cx.spawn(async move |this, cx| {
             let room = join.await?;
@@ -320,7 +319,7 @@ impl ActiveCall {
             .0
             .borrow_mut()
             .take()
-            .context("no incoming call")?;
+            .ok_or_else(|| anyhow!("no incoming call"))?;
         self.client.send(proto::DeclineCall {
             room_id: call.room_id,
         })?;
@@ -346,8 +345,8 @@ impl ActiveCall {
 
         let client = self.client.clone();
         let user_store = self.user_store.clone();
-        let join = self._join_debouncer.spawn(cx, move |cx| async move {
-            Room::join_channel(channel_id, client, user_store, cx).await
+        let join = self._join_debouncer.spawn(cx, move |mut cx| async move {
+            Room::join_channel(channel_id, client, user_store, &mut cx).await
         });
 
         cx.spawn(async move |this, cx| {
@@ -389,8 +388,11 @@ impl ActiveCall {
         project: Entity<Project>,
         cx: &mut Context<Self>,
     ) -> Result<()> {
-        let (room, _) = self.room.as_ref().context("no active call")?;
-        room.update(cx, |room, cx| room.unshare_project(project, cx))
+        if let Some((room, _)) = self.room.as_ref() {
+            room.update(cx, |room, cx| room.unshare_project(project, cx))
+        } else {
+            Err(anyhow!("no active call"))
+        }
     }
 
     pub fn location(&self) -> Option<&WeakEntity<Project>> {
