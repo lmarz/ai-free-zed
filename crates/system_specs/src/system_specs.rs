@@ -1,6 +1,5 @@
 //! # system_specs
 
-use client::telemetry;
 pub use gpui::GpuSpecs;
 use gpui::{App, AppContext as _, SemanticVersion, Task, Window, actions};
 use human_bytes::human_bytes;
@@ -34,7 +33,6 @@ impl SystemSpecs {
     pub fn new(window: &mut Window, cx: &mut App) -> Task<Self> {
         let app_version = AppVersion::global(cx).to_string();
         let release_channel = ReleaseChannel::global(cx);
-        let os_name = telemetry::os_name();
         let system = System::new_with_specifics(
             RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()),
         );
@@ -56,13 +54,12 @@ impl SystemSpecs {
         });
 
         cx.background_spawn(async move {
-            let os_version = telemetry::os_version();
             SystemSpecs {
                 app_version,
                 release_channel: release_channel.display_name(),
                 bundle_type,
-                os_name,
-                os_version,
+                os_name: "".to_string(),
+                os_version: "".to_string(),
                 memory,
                 architecture,
                 commit_sha,
@@ -76,8 +73,6 @@ impl SystemSpecs {
         app_commit_sha: Option<AppCommitSha>,
         release_channel: ReleaseChannel,
     ) -> Self {
-        let os_name = telemetry::os_name();
-        let os_version = telemetry::os_version();
         let system = System::new_with_specifics(
             RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()),
         );
@@ -92,8 +87,8 @@ impl SystemSpecs {
         Self {
             app_version: app_version.to_string(),
             release_channel: release_channel.display_name(),
-            os_name,
-            os_version,
+            os_name: "".to_string(),
+            os_version: "".to_string(),
             memory,
             architecture,
             commit_sha,

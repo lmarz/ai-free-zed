@@ -52,7 +52,7 @@ pub use item::{
     ProjectItem, SerializableItem, SerializableItemHandle, WeakItemHandle,
 };
 use itertools::Itertools;
-use language::{Buffer, LanguageRegistry, Rope, language_settings::all_language_settings};
+use language::{Buffer, LanguageRegistry, Rope};
 pub use modal_layer::*;
 use node_runtime::NodeRuntime;
 use notifications::{
@@ -80,7 +80,7 @@ use remote::{RemoteClientDelegate, RemoteConnectionOptions, remote_client::Conne
 use schemars::JsonSchema;
 use serde::Deserialize;
 use session::AppSession;
-use settings::{Settings, SettingsLocation, update_settings_file};
+use settings::{Settings, SettingsLocation};
 use shared_screen::SharedScreen;
 use sqlez::{
     bindable::{Bind, Column, StaticColumnCount},
@@ -247,8 +247,6 @@ actions!(
         ToggleBottomDock,
         /// Toggles centered layout mode.
         ToggleCenteredLayout,
-        /// Toggles edit prediction feature globally for all files.
-        ToggleEditPrediction,
         /// Toggles the left dock.
         ToggleLeftDock,
         /// Toggles the right dock.
@@ -703,20 +701,6 @@ impl ProjectItemRegistry {
         };
         open_project_item
     }
-
-    fn build_item<T: project::ProjectItem>(
-        &self,
-        item: Entity<T>,
-        project: Entity<Project>,
-        pane: Option<&Pane>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Option<Box<dyn ItemHandle>> {
-        let build = self
-            .build_project_item_fns_by_type
-            .get(&TypeId::of::<T>())?;
-        Some(build(item.into_any(), project, pane, window, cx))
-    }
 }
 
 type WorkspaceItemBuilder =
@@ -956,9 +940,8 @@ impl AppState {
 
         let fs = fs::FakeFs::new(cx.background_executor().clone());
         let languages = Arc::new(LanguageRegistry::test(cx.background_executor().clone()));
-        let clock = Arc::new(clock::FakeSystemClock::new());
         let http_client = http_client::FakeHttpClient::with_404_response();
-        let client = Client::new(clock, http_client, cx);
+        let client = Client::new(http_client, cx);
         let session = cx.new(|cx| AppSession::new(Session::test(), cx));
         let user_store = cx.new(|cx| UserStore::new(client.clone(), cx));
         let workspace_store = cx.new(|cx| WorkspaceStore::new(client.clone(), cx));
@@ -1260,10 +1243,6 @@ impl Workspace {
                             })
                         },
                     );
-                }
-
-                project::Event::AgentLocationChanged => {
-                    this.handle_agent_location_changed(window, cx)
                 }
 
                 _ => {}
@@ -3283,10 +3262,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut App,
     ) {
-        if let Some(text) = item.telemetry_event_text(cx) {
-            telemetry::event!(text);
-        }
-
         pane.update(cx, |pane, cx| {
             pane.add_item(
                 item,
@@ -4802,69 +4777,6 @@ impl Workspace {
         Ok(())
     }
 
-    fn handle_agent_location_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(follower_state) = self.follower_states.get_mut(&CollaboratorId::Agent) else {
-            return;
-        };
-
-        if let Some(agent_location) = self.project.read(cx).agent_location() {
-            let buffer_entity_id = agent_location.buffer.entity_id();
-            let view_id = ViewId {
-                creator: CollaboratorId::Agent,
-                id: buffer_entity_id.as_u64(),
-            };
-            follower_state.active_view_id = Some(view_id);
-
-            let item = match follower_state.items_by_leader_view_id.entry(view_id) {
-                hash_map::Entry::Occupied(entry) => Some(entry.into_mut()),
-                hash_map::Entry::Vacant(entry) => {
-                    let existing_view =
-                        follower_state
-                            .center_pane
-                            .read(cx)
-                            .items()
-                            .find_map(|item| {
-                                let item = item.to_followable_item_handle(cx)?;
-                                if item.buffer_kind(cx) == ItemBufferKind::Singleton
-                                    && item.project_item_model_ids(cx).as_slice()
-                                        == [buffer_entity_id]
-                                {
-                                    Some(item)
-                                } else {
-                                    None
-                                }
-                            });
-                    let view = existing_view.or_else(|| {
-                        agent_location.buffer.upgrade().and_then(|buffer| {
-                            cx.update_default_global(|registry: &mut ProjectItemRegistry, cx| {
-                                registry.build_item(buffer, self.project.clone(), None, window, cx)
-                            })?
-                            .to_followable_item_handle(cx)
-                        })
-                    });
-
-                    view.map(|view| {
-                        entry.insert(FollowerView {
-                            view,
-                            location: None,
-                        })
-                    })
-                }
-            };
-
-            if let Some(item) = item {
-                item.view
-                    .set_leader_id(Some(CollaboratorId::Agent), window, cx);
-                item.view
-                    .update_agent_location(agent_location.position, window, cx);
-            }
-        } else {
-            follower_state.active_view_id = None;
-        }
-
-        self.leader_updated(CollaboratorId::Agent, window, cx);
-    }
-
     pub fn update_active_view_for_followers(&mut self, window: &mut Window, cx: &mut App) {
         let mut is_project_item = true;
         let mut update = proto::UpdateActiveView::default();
@@ -5604,7 +5516,6 @@ impl Workspace {
             .on_action(cx.listener(Self::activate_pane_at_index))
             .on_action(cx.listener(Self::move_item_to_pane_at_index))
             .on_action(cx.listener(Self::move_focused_panel_to_next_position))
-            .on_action(cx.listener(Self::toggle_edit_predictions_all_files))
             .on_action(cx.listener(|workspace, _: &Unfollow, window, cx| {
                 let pane = workspace.active_pane().clone();
                 workspace.unfollow_in_pane(&pane, window, cx);
@@ -6043,19 +5954,6 @@ impl Workspace {
             } else {
                 bottom_dock.resize_active_panel(Some(size), window, cx);
             }
-        });
-    }
-
-    fn toggle_edit_predictions_all_files(
-        &mut self,
-        _: &ToggleEditPrediction,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let fs = self.project().read(cx).fs().clone();
-        let show_edit_predictions = all_language_settings(None, cx).show_edit_predictions(None, cx);
-        update_settings_file(fs, cx, move |file, _| {
-            file.project.all_languages.defaults.show_edit_predictions = Some(!show_edit_predictions)
         });
     }
 }
@@ -7534,8 +7432,6 @@ async fn open_remote_project_inner(
 
     cx.update_window(window.into(), |_, window, cx| {
         window.replace_root(cx, |window, cx| {
-            telemetry::event!("SSH Project Opened");
-
             let mut workspace =
                 Workspace::new(Some(workspace_id), project, app_state.clone(), window, cx);
             workspace.update_history(cx);

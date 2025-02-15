@@ -1,8 +1,6 @@
-pub mod agent_server_store;
 pub mod buffer_store;
 mod color_extractor;
 pub mod connection_manager;
-pub mod context_server_store;
 pub mod debounced_delay;
 pub mod debugger;
 pub mod git_store;
@@ -25,7 +23,6 @@ mod project_tests;
 mod direnv;
 mod environment;
 use buffer_diff::BufferDiff;
-use context_server_store::ContextServerStore;
 pub use environment::{EnvironmentErrorMessage, ProjectEnvironmentEvent};
 use git::repository::get_git_committer;
 use git_store::{Repository, RepositoryId};
@@ -36,11 +33,9 @@ use dap::inline_value::{InlineValueLocation, VariableLookupKind, VariableScope};
 use task::Shell;
 
 use crate::{
-    agent_server_store::AllAgentServersSettings,
     git_store::GitStore,
     lsp_store::{SymbolLocation, log_store::LogKind},
 };
-pub use agent_server_store::{AgentServerStore, AgentServersUpdated};
 pub use git_store::{
     ConflictRegion, ConflictSet, ConflictSetSnapshot, ConflictSetUpdate,
     git_traversal::{ChildEntriesGitIter, GitEntry, GitEntryRef, GitTraversal},
@@ -79,10 +74,9 @@ use gpui::{
     Task, WeakEntity, Window,
 };
 use language::{
-    Buffer, BufferEvent, Capability, CodeLabel, CursorShape, Language, LanguageName,
-    LanguageRegistry, PointUtf16, ToOffset, ToPointUtf16, Toolchain, ToolchainMetadata,
-    ToolchainScope, Transaction, Unclipped, language_settings::InlayHintKind,
-    proto::split_operations,
+    Buffer, BufferEvent, Capability, CodeLabel, Language, LanguageName, LanguageRegistry,
+    PointUtf16, ToOffset, ToPointUtf16, Toolchain, ToolchainMetadata, ToolchainScope, Transaction,
+    Unclipped, language_settings::InlayHintKind, proto::split_operations,
 };
 use lsp::{
     CodeActionKind, CompletionContext, CompletionItemKind, DocumentHighlightKind, InsertTextMode,
@@ -183,7 +177,6 @@ pub struct Project {
     buffer_ordered_messages_tx: mpsc::UnboundedSender<BufferOrderedMessage>,
     languages: Arc<LanguageRegistry>,
     dap_store: Entity<DapStore>,
-    agent_server_store: Entity<AgentServerStore>,
 
     breakpoint_store: Entity<BreakpointStore>,
     collab_client: Arc<client::Client>,
@@ -198,7 +191,6 @@ pub struct Project {
     client_subscriptions: Vec<client::Subscription>,
     worktree_store: Entity<WorktreeStore>,
     buffer_store: Entity<BufferStore>,
-    context_server_store: Entity<ContextServerStore>,
     image_store: Entity<ImageStore>,
     lsp_store: Entity<LspStore>,
     _subscriptions: Vec<gpui::Subscription>,
@@ -214,13 +206,6 @@ pub struct Project {
     environment: Entity<ProjectEnvironment>,
     settings_observer: Entity<SettingsObserver>,
     toolchain_store: Option<Entity<ToolchainStore>>,
-    agent_location: Option<AgentLocation>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AgentLocation {
-    pub buffer: WeakEntity<Buffer>,
-    pub position: Anchor,
 }
 
 #[derive(Default)]
@@ -343,10 +328,7 @@ pub enum Event {
     SnippetEdit(BufferId, Vec<(lsp::Range, Snippet)>),
     ExpandedAllForEntry(WorktreeId, ProjectEntryId),
     EntryRenamed(ProjectTransaction),
-    AgentLocationChanged,
 }
-
-pub struct AgentLocationChanged;
 
 pub enum DebugAdapterClientState {
     Starting(Task<Option<Arc<DebugAdapterClient>>>),
@@ -971,34 +953,10 @@ pub enum PulledDiagnostics {
     },
 }
 
-/// Whether to disable all AI features in Zed.
-///
-/// Default: false
-#[derive(Copy, Clone, Debug)]
-pub struct DisableAiSettings {
-    pub disable_ai: bool,
-}
-
-impl settings::Settings for DisableAiSettings {
-    fn from_settings(content: &settings::SettingsContent) -> Self {
-        Self {
-            disable_ai: content.disable_ai.unwrap().0,
-        }
-    }
-
-    fn import_from_vscode(
-        _vscode: &settings::VsCodeSettings,
-        _current: &mut settings::SettingsContent,
-    ) {
-    }
-}
-
 impl Project {
     pub fn init_settings(cx: &mut App) {
         WorktreeSettings::register(cx);
         ProjectSettings::register(cx);
-        DisableAiSettings::register(cx);
-        AllAgentServersSettings::register(cx);
     }
 
     pub fn init(client: &Arc<Client>, cx: &mut App) {
@@ -1031,7 +989,6 @@ impl Project {
         ToolchainStore::init(&client);
         DapStore::init(&client, cx);
         BreakpointStore::init(&client);
-        context_server_store::init(cx);
     }
 
     pub fn local(
@@ -1051,10 +1008,6 @@ impl Project {
             let worktree_store = cx.new(|_| WorktreeStore::local(false, fs.clone()));
             cx.subscribe(&worktree_store, Self::on_worktree_store_event)
                 .detach();
-
-            let weak_self = cx.weak_entity();
-            let context_server_store =
-                cx.new(|cx| ContextServerStore::new(worktree_store.clone(), weak_self, cx));
 
             let environment = cx.new(|_| ProjectEnvironment::new(env));
             let manifest_tree = ManifestTree::new(worktree_store.clone(), cx);
@@ -1154,16 +1107,6 @@ impl Project {
                 )
             });
 
-            let agent_server_store = cx.new(|cx| {
-                AgentServerStore::local(
-                    node.clone(),
-                    fs.clone(),
-                    environment.clone(),
-                    client.http_client(),
-                    cx,
-                )
-            });
-
             cx.subscribe(&lsp_store, Self::on_lsp_store_event).detach();
 
             Self {
@@ -1173,7 +1116,6 @@ impl Project {
                 buffer_store,
                 image_store,
                 lsp_store,
-                context_server_store,
                 join_project_response_message_id: 0,
                 client_state: ProjectClientState::Local,
                 git_store,
@@ -1190,7 +1132,6 @@ impl Project {
                 remote_client: None,
                 breakpoint_store,
                 dap_store,
-                agent_server_store,
 
                 buffers_needing_diff: Default::default(),
                 git_diff_debouncer: DebouncedDelay::new(),
@@ -1206,8 +1147,6 @@ impl Project {
                 search_excluded_history: Self::new_search_history(),
 
                 toolchain_store: Some(toolchain_store),
-
-                agent_location: None,
             }
         })
     }
@@ -1241,10 +1180,6 @@ impl Project {
             });
             cx.subscribe(&worktree_store, Self::on_worktree_store_event)
                 .detach();
-
-            let weak_self = cx.weak_entity();
-            let context_server_store =
-                cx.new(|cx| ContextServerStore::new(worktree_store.clone(), weak_self, cx));
 
             let buffer_store = cx.new(|cx| {
                 BufferStore::remote(
@@ -1330,9 +1265,6 @@ impl Project {
                 )
             });
 
-            let agent_server_store =
-                cx.new(|_| AgentServerStore::remote(REMOTE_SERVER_PROJECT_ID, remote.clone()));
-
             cx.subscribe(&remote, Self::on_remote_client_event).detach();
 
             let this = Self {
@@ -1342,13 +1274,11 @@ impl Project {
                 buffer_store,
                 image_store,
                 lsp_store,
-                context_server_store,
                 breakpoint_store,
                 dap_store,
                 join_project_response_message_id: 0,
                 client_state: ProjectClientState::Local,
                 git_store,
-                agent_server_store,
                 client_subscriptions: Vec::new(),
                 _subscriptions: vec![
                     cx.on_release(Self::release),
@@ -1392,7 +1322,6 @@ impl Project {
                 search_excluded_history: Self::new_search_history(),
 
                 toolchain_store: Some(toolchain_store),
-                agent_location: None,
             };
 
             // remote server -> local machine handlers
@@ -1403,7 +1332,6 @@ impl Project {
             remote_proto.subscribe_to_entity(REMOTE_SERVER_PROJECT_ID, &this.dap_store);
             remote_proto.subscribe_to_entity(REMOTE_SERVER_PROJECT_ID, &this.settings_observer);
             remote_proto.subscribe_to_entity(REMOTE_SERVER_PROJECT_ID, &this.git_store);
-            remote_proto.subscribe_to_entity(REMOTE_SERVER_PROJECT_ID, &this.agent_server_store);
 
             remote_proto.add_entity_message_handler(Self::handle_create_buffer_for_peer);
             remote_proto.add_entity_message_handler(Self::handle_update_worktree);
@@ -1419,7 +1347,6 @@ impl Project {
             ToolchainStore::init(&remote_proto);
             DapStore::init(&remote_proto, cx);
             GitStore::init(&remote_proto);
-            AgentServerStore::init_remote(&remote_proto);
 
             this
         })
@@ -1565,15 +1492,10 @@ impl Project {
             )
         })?;
 
-        let agent_server_store = cx.new(|cx| AgentServerStore::collab(cx))?;
         let replica_id = response.payload.replica_id as ReplicaId;
 
         let project = cx.new(|cx| {
             let snippets = SnippetProvider::new(fs.clone(), BTreeSet::from_iter([]), cx);
-
-            let weak_self = cx.weak_entity();
-            let context_server_store =
-                cx.new(|cx| ContextServerStore::new(worktree_store.clone(), weak_self, cx));
 
             let mut worktrees = Vec::new();
             for worktree in response.payload.worktrees {
@@ -1609,7 +1531,6 @@ impl Project {
                 image_store,
                 worktree_store: worktree_store.clone(),
                 lsp_store: lsp_store.clone(),
-                context_server_store,
                 active_entry: None,
                 collaborators: Default::default(),
                 join_project_response_message_id: response.message_id,
@@ -1632,7 +1553,6 @@ impl Project {
                 breakpoint_store,
                 dap_store: dap_store.clone(),
                 git_store: git_store.clone(),
-                agent_server_store,
                 buffers_needing_diff: Default::default(),
                 git_diff_debouncer: DebouncedDelay::new(),
                 terminals: Terminals {
@@ -1645,7 +1565,6 @@ impl Project {
                 environment,
                 remotely_created_models: Arc::new(Mutex::new(RemotelyCreatedModels::default())),
                 toolchain_store: None,
-                agent_location: None,
             };
             project.set_role(role, cx);
             for worktree in worktrees {
@@ -1753,14 +1672,11 @@ impl Project {
         root_paths: impl IntoIterator<Item = &Path>,
         cx: &mut AsyncApp,
     ) -> Entity<Project> {
-        use clock::FakeSystemClock;
-
         let fs = Arc::new(RealFs::new(None, cx.background_executor().clone()));
         let languages = LanguageRegistry::test(cx.background_executor().clone());
-        let clock = Arc::new(FakeSystemClock::new());
         let http_client = http_client::FakeHttpClient::with_404_response();
         let client = cx
-            .update(|cx| client::Client::new(clock, http_client.clone(), cx))
+            .update(|cx| client::Client::new(http_client.clone(), cx))
             .unwrap();
         let user_store = cx.new(|cx| UserStore::new(client.clone(), cx)).unwrap();
         let project = cx
@@ -1797,12 +1713,9 @@ impl Project {
         root_paths: impl IntoIterator<Item = &Path>,
         cx: &mut gpui::TestAppContext,
     ) -> Entity<Project> {
-        use clock::FakeSystemClock;
-
         let languages = LanguageRegistry::test(cx.executor());
-        let clock = Arc::new(FakeSystemClock::new());
         let http_client = http_client::FakeHttpClient::with_404_response();
-        let client = cx.update(|cx| client::Client::new(clock, http_client.clone(), cx));
+        let client = cx.update(|cx| client::Client::new(http_client.clone(), cx));
         let user_store = cx.new(|cx| UserStore::new(client.clone(), cx));
         let project = cx.update(|cx| {
             Project::local(
@@ -1852,10 +1765,6 @@ impl Project {
 
     pub fn worktree_store(&self) -> Entity<WorktreeStore> {
         self.worktree_store.clone()
-    }
-
-    pub fn context_server_store(&self) -> Entity<ContextServerStore> {
-        self.context_server_store.clone()
     }
 
     pub fn buffer_for_id(&self, remote_id: BufferId, cx: &App) -> Option<Entity<Buffer>> {
@@ -3162,9 +3071,6 @@ impl Project {
             WorktreeStoreEvent::WorktreeOrderChanged => cx.emit(Event::WorktreeOrderChanged),
             WorktreeStoreEvent::WorktreeUpdateSent(_) => {}
             WorktreeStoreEvent::WorktreeUpdatedEntries(worktree_id, changes) => {
-                self.client()
-                    .telemetry()
-                    .report_discovered_project_type_events(*worktree_id, changes);
                 cx.emit(Event::WorktreeUpdatedEntries(*worktree_id, changes.clone()))
             }
             WorktreeStoreEvent::WorktreeDeletedEntry(worktree_id, id) => {
@@ -5227,10 +5133,6 @@ impl Project {
         &self.git_store
     }
 
-    pub fn agent_server_store(&self) -> &Entity<AgentServerStore> {
-        &self.agent_server_store
-    }
-
     #[cfg(test)]
     fn git_scans_complete(&self, cx: &Context<Self>) -> Task<()> {
         cx.spawn(async move |this, cx| {
@@ -5265,46 +5167,6 @@ impl Project {
 
     pub fn status_for_buffer_id(&self, buffer_id: BufferId, cx: &App) -> Option<FileStatus> {
         self.git_store.read(cx).status_for_buffer_id(buffer_id, cx)
-    }
-
-    pub fn set_agent_location(
-        &mut self,
-        new_location: Option<AgentLocation>,
-        cx: &mut Context<Self>,
-    ) {
-        if let Some(old_location) = self.agent_location.as_ref() {
-            old_location
-                .buffer
-                .update(cx, |buffer, cx| buffer.remove_agent_selections(cx))
-                .ok();
-        }
-
-        if let Some(location) = new_location.as_ref() {
-            location
-                .buffer
-                .update(cx, |buffer, cx| {
-                    buffer.set_agent_selections(
-                        Arc::from([language::Selection {
-                            id: 0,
-                            start: location.position,
-                            end: location.position,
-                            reversed: false,
-                            goal: language::SelectionGoal::None,
-                        }]),
-                        false,
-                        CursorShape::Hollow,
-                        cx,
-                    )
-                })
-                .ok();
-        }
-
-        self.agent_location = new_location;
-        cx.emit(Event::AgentLocationChanged);
-    }
-
-    pub fn agent_location(&self) -> Option<AgentLocation> {
-        self.agent_location.clone()
     }
 
     pub fn path_style(&self, cx: &App) -> PathStyle {
@@ -5673,57 +5535,4 @@ fn provide_inline_values(
     }
 
     variables
-}
-
-#[cfg(test)]
-mod disable_ai_settings_tests {
-    use super::*;
-    use gpui::TestAppContext;
-    use settings::Settings;
-
-    #[gpui::test]
-    async fn test_disable_ai_settings_security(cx: &mut TestAppContext) {
-        cx.update(|cx| {
-            settings::init(cx);
-            Project::init_settings(cx);
-
-            // Test 1: Default is false (AI enabled)
-            assert!(
-                !DisableAiSettings::get_global(cx).disable_ai,
-                "Default should allow AI"
-            );
-        });
-
-        let disable_true = serde_json::json!({
-            "disable_ai": true
-        })
-        .to_string();
-        let disable_false = serde_json::json!({
-            "disable_ai": false
-        })
-        .to_string();
-
-        cx.update_global::<SettingsStore, _>(|store, cx| {
-            store.set_user_settings(&disable_false, cx).unwrap();
-            store.set_global_settings(&disable_true, cx).unwrap();
-        });
-        cx.update(|cx| {
-            assert!(
-                DisableAiSettings::get_global(cx).disable_ai,
-                "Local false cannot override global true"
-            );
-        });
-
-        cx.update_global::<SettingsStore, _>(|store, cx| {
-            store.set_global_settings(&disable_false, cx).unwrap();
-            store.set_user_settings(&disable_true, cx).unwrap();
-        });
-
-        cx.update(|cx| {
-            assert!(
-                DisableAiSettings::get_global(cx).disable_ai,
-                "Local false cannot override global true"
-            );
-        });
-    }
 }
