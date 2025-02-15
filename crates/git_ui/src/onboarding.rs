@@ -7,15 +7,6 @@ use workspace::{ModalView, Workspace};
 
 use crate::git_panel::GitPanel;
 
-macro_rules! git_onboarding_event {
-    ($name:expr) => {
-        telemetry::event!($name, source = "Git Onboarding");
-    };
-    ($name:expr, $($key:ident $(= $value:expr)?),+ $(,)?) => {
-        telemetry::event!($name, source = "Git Onboarding", $($key $(= $value)?),+);
-    };
-}
-
 /// Introduces user to the Git Panel and overall improved Git support
 pub struct GitOnboardingModal {
     focus_handle: FocusHandle,
@@ -37,15 +28,11 @@ impl GitOnboardingModal {
         });
 
         cx.emit(DismissEvent);
-
-        git_onboarding_event!("Open Panel Clicked");
     }
 
     fn view_blog(&mut self, _: &ClickEvent, _: &mut Window, cx: &mut Context<Self>) {
         cx.open_url("https://zed.dev/blog/git");
         cx.notify();
-
-        git_onboarding_event!("Blog Link Clicked");
     }
 
     fn cancel(&mut self, _: &menu::Cancel, _: &mut Window, cx: &mut Context<Self>) {
@@ -82,7 +69,6 @@ impl Render for GitOnboardingModal {
             .overflow_hidden()
             .on_action(cx.listener(Self::cancel))
             .on_action(cx.listener(|_, _: &menu::Cancel, _window, cx| {
-                git_onboarding_event!("Cancelled", trigger = "Action");
                 cx.emit(DismissEvent);
             }))
             .on_any_mouse_down(cx.listener(|this, _: &MouseDownEvent, window, _cx| {
@@ -112,7 +98,6 @@ impl Render for GitOnboardingModal {
             .child(h_flex().absolute().top_2().right_2().child(
                 IconButton::new("cancel", IconName::X).on_click(cx.listener(
                     |_, _: &ClickEvent, _window, cx| {
-                        git_onboarding_event!("Cancelled", trigger = "X click");
                         cx.emit(DismissEvent);
                     },
                 )),
