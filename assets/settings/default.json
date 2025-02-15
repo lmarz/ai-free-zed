@@ -22,11 +22,6 @@
   // 5. "SublimeText"
   // 6. "TextMate"
   "base_keymap": "VSCode",
-  // Features that can be globally enabled or disabled
-  "features": {
-    // Which edit prediction provider to use.
-    "edit_prediction_provider": "zed"
-  },
   // The name of a font to use for rendering text in the editor
   "buffer_font_family": "Zed Plex Mono",
   // Set the buffer text's font fallbacks, this will be merged with
@@ -267,12 +262,6 @@
   //
   // Note: This setting has no effect in Vim mode, as rewrap is already allowed everywhere.
   "allow_rewrap": "in_comments",
-  // Controls whether edit predictions are shown immediately (true)
-  // or manually by triggering `editor::ShowEditPrediction` (false).
-  "show_edit_predictions": true,
-  // Controls whether edit predictions are shown in a given language scope.
-  // Example: ["string", "comment"]
-  "edit_predictions_disabled_in": [],
   // Whether to show tabs and spaces in the editor.
   // This setting can take four values:
   //
@@ -639,132 +628,6 @@
     // Default width of the notification panel.
     "default_width": 380
   },
-  "agent": {
-    // Version of this setting.
-    "version": "2",
-    // Whether the agent is enabled.
-    "enabled": true,
-    /// What completion mode to start new threads in, if available. Can be 'normal' or 'max'.
-    "preferred_completion_mode": "normal",
-    // Whether to show the agent panel button in the status bar.
-    "button": true,
-    // Where to dock the agent panel. Can be 'left', 'right' or 'bottom'.
-    "dock": "right",
-    // Default width when the agent panel is docked to the left or right.
-    "default_width": 640,
-    // Default height when the agent panel is docked to the bottom.
-    "default_height": 320,
-    // The default model to use when creating new threads.
-    "default_model": {
-      // The provider to use.
-      "provider": "zed.dev",
-      // The model to use.
-      "model": "claude-3-7-sonnet-latest"
-    },
-    // The model to use when applying edits from the agent.
-    "editor_model": {
-      // The provider to use.
-      "provider": "zed.dev",
-      // The model to use.
-      "model": "claude-3-7-sonnet-latest"
-    },
-    // Additional parameters for language model requests. When making a request to a model, parameters will be taken
-    // from the last entry in this list that matches the model's provider and name. In each entry, both provider
-    // and model are optional, so that you can specify parameters for either one.
-    "model_parameters": [
-      // To set parameters for all requests to OpenAI models:
-      // {
-      //   "provider": "openai",
-      //   "temperature": 0.5
-      // }
-      //
-      // To set parameters for all requests in general:
-      // {
-      //   "temperature": 0
-      // }
-      //
-      // To set parameters for a specific provider and model:
-      // {
-      //   "provider": "zed.dev",
-      //   "model": "claude-3-7-sonnet-latest",
-      //   "temperature": 1.0
-      // }
-    ],
-    // When enabled, the agent can run potentially destructive actions without asking for your confirmation.
-    "always_allow_tool_actions": false,
-    // When enabled, the agent will stream edits.
-    "stream_edits": false,
-    // When enabled, agent edits will be displayed in single-file editors for review
-    "single_file_review": true,
-    "default_profile": "write",
-    "profiles": {
-      "write": {
-        "name": "Write",
-        "enable_all_context_servers": true,
-        "tools": {
-          "copy_path": true,
-          "create_directory": true,
-          "create_file": true,
-          "delete_path": true,
-          "diagnostics": true,
-          "edit_file": true,
-          "fetch": true,
-          "list_directory": true,
-          "move_path": true,
-          "now": true,
-          "find_path": true,
-          "read_file": true,
-          "grep": true,
-          "terminal": true,
-          "thinking": true,
-          "web_search": true
-        }
-      },
-      "ask": {
-        "name": "Ask",
-        // We don't know which of the context server tools are safe for the "Ask" profile, so we don't enable them by default.
-        // "enable_all_context_servers": true,
-        "tools": {
-          "contents": true,
-          "diagnostics": true,
-          "fetch": true,
-          "list_directory": true,
-          "now": true,
-          "find_path": true,
-          "read_file": true,
-          "open": true,
-          "grep": true,
-          "thinking": true,
-          "web_search": true
-        }
-      },
-      "minimal": {
-        "name": "Minimal",
-        "enable_all_context_servers": false,
-        "tools": {}
-      }
-    },
-    // Where to show notifications when the agent has either completed
-    // its response, or else needs confirmation before it can run a
-    // tool action.
-    // "primary_screen" - Show the notification only on your primary screen (default)
-    // "all_screens" - Show these notifications on all screens
-    // "never" - Never show these notifications
-    "notify_when_agent_waiting": "primary_screen"
-  },
-  // The settings for slash commands.
-  "slash_commands": {
-    // Settings for the `/docs` slash command.
-    "docs": {
-      // Whether `/docs` is enabled.
-      "enabled": false
-    },
-    // Settings for the `/project` slash command.
-    "project": {
-      // Whether `/project` is enabled.
-      "enabled": false
-    }
-  },
   // Whether the screen sharing icon is shown in the os status bar.
   "show_call_status_icon": true,
   // Whether to use language servers to provide code intelligence.
@@ -936,16 +799,6 @@
   "tab_size": 4,
   // What debuggers are preferred by default for all languages.
   "debuggers": [],
-  // Control what info is collected by Zed.
-  "telemetry": {
-    // Send debug info like crash reports.
-    "diagnostics": true,
-    // Send anonymized usage data like what languages you're using Zed with.
-    "metrics": true
-  },
-  // Automatically update Zed. This setting may be ignored on Linux if
-  // installed through a package manager.
-  "auto_update": true,
   // Diagnostics configuration.
   "diagnostics": {
     // Whether to show warnings or not by default.
@@ -1037,24 +890,6 @@
   // 2. Load direnv configuration through the shell hook, works for POSIX shells and fish.
   //      "load_direnv": "shell_hook"
   "load_direnv": "direct",
-  "edit_predictions": {
-    // A list of globs representing files that edit predictions should be disabled for.
-    // There's a sensible default list of globs already included.
-    // Any addition to this list will be merged with the default list.
-    // Globs are matched relative to the worktree root,
-    // except when starting with a slash (/) or equivalent in Windows.
-    "disabled_globs": ["**/.env*", "**/*.pem", "**/*.key", "**/*.cert", "**/*.crt", "**/.dev.vars", "**/secrets.yml"],
-    // When to show edit predictions previews in buffer.
-    // This setting takes two possible values:
-    // 1. Display predictions inline when there are no language server completions available.
-    //     "mode": "eager"
-    // 2. Display predictions inline only when holding a modifier key (alt by default).
-    //     "mode": "subtle"
-    "mode": "eager",
-    // Whether edit predictions are enabled when editing text threads.
-    // This setting has no effect if globally disabled.
-    "enabled_in_text_threads": true
-  },
   // Settings specific to journaling
   "journal": {
     // The path of the directory where journal entries are stored
@@ -1649,8 +1484,6 @@
   //   }
   // ]
   "ssh_connections": [],
-  // Configures context servers for use by the agent.
-  "context_servers": {},
   "debugger": {
     "stepping_granularity": "line",
     "save_breakpoints": true,

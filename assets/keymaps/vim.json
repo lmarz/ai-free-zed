@@ -335,8 +335,6 @@
       "escape": "vim::NormalBefore",
       "ctrl-x": null,
       "ctrl-x ctrl-o": "editor::ShowCompletions",
-      "ctrl-x ctrl-a": "assistant::InlineAssist", // zed specific
-      "ctrl-x ctrl-c": "editor::ShowEditPrediction", // zed specific
       "ctrl-x ctrl-l": "editor::ToggleCodeActions", // zed specific
       "ctrl-x ctrl-z": "editor::Cancel",
       "ctrl-w": "editor::DeleteToPreviousWordStart",
@@ -827,23 +825,6 @@
       "x": "git::ToggleStaged",
       "shift-x": "git::StageAll",
       "shift-u": "git::UnstageAll"
-    }
-  },
-  {
-    "context": "Editor && edit_prediction",
-    "bindings": {
-      // This is identical to the binding in the base keymap, but the vim bindings above to
-      // "vim::Tab" shadow it, so it needs to be bound again.
-      "tab": "editor::AcceptEditPrediction"
-    }
-  },
-  {
-    "context": "os != macos && Editor && edit_prediction_conflict",
-    "bindings": {
-      // alt-l is provided as an alternative to tab/alt-tab. and will be displayed in the UI. This
-      // is because alt-tab may not be available, as it is often used for window switching on Linux
-      // and Windows.
-      "alt-l": "editor::AcceptEditPrediction"
     }
   },
   {

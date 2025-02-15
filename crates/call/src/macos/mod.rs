@@ -2,11 +2,11 @@ pub mod participant;
 pub mod room;
 
 use crate::call_settings::CallSettings;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use audio::Audio;
-use client::{ChannelId, Client, TypedEnvelope, User, UserStore, ZED_ALWAYS_ACTIVE, proto};
+use client::{proto, ChannelId, Client, TypedEnvelope, User, UserStore, ZED_ALWAYS_ACTIVE};
 use collections::HashSet;
-use futures::{Future, FutureExt, channel::oneshot, future::Shared};
+use futures::{channel::oneshot, future::Shared, Future, FutureExt};
 use gpui::{
     App, AppContext as _, AsyncApp, Context, Entity, EventEmitter, Global, Subscription, Task,
     WeakEntity,
@@ -17,7 +17,6 @@ use room::Event;
 use settings::Settings;
 use std::sync::Arc;
 
-pub use livekit_client::{RemoteVideoTrack, RemoteVideoTrackView, RemoteVideoTrackViewEvent};
 pub use participant::ParticipantLocation;
 pub use room::Room;
 
@@ -302,9 +301,9 @@ impl ActiveCall {
         let room_id = call.room_id;
         let client = self.client.clone();
         let user_store = self.user_store.clone();
-        let join = self
-            ._join_debouncer
-            .spawn(cx, move |cx| Room::join(room_id, client, user_store, cx));
+        let join = self._join_debouncer.spawn(cx, move |mut cx| async move {
+            Room::join(room_id, client, user_store, &mut cx).await
+        });
 
         cx.spawn(async move |this, cx| {
             let room = join.await?;
@@ -346,8 +345,8 @@ impl ActiveCall {
 
         let client = self.client.clone();
         let user_store = self.user_store.clone();
-        let join = self._join_debouncer.spawn(cx, move |cx| async move {
-            Room::join_channel(channel_id, client, user_store, cx).await
+        let join = self._join_debouncer.spawn(cx, move |mut cx| async move {
+            Room::join_channel(channel_id, client, user_store, &mut cx).await
         });
 
         cx.spawn(async move |this, cx| {
