@@ -1,6 +1,6 @@
 //! Provides `language`-related settings.
 
-use crate::{File, Language, LanguageName, LanguageServerName};
+use crate::{File, LanguageName, LanguageServerName};
 use anyhow::Result;
 use collections::{HashMap, HashSet};
 use core::slice;
@@ -8,7 +8,7 @@ use ec4rs::{
     property::{FinalNewline, IndentSize, IndentStyle, TabWidth, TrimTrailingWs},
     Properties as EditorconfigProperties,
 };
-use globset::{Glob, GlobMatcher, GlobSet, GlobSetBuilder};
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use gpui::App;
 use itertools::{Either, Itertools};
 use schemars::{
@@ -23,7 +23,7 @@ use serde_json::Value;
 use settings::{
     add_references_to_properties, Settings, SettingsLocation, SettingsSources, SettingsStore,
 };
-use std::{borrow::Cow, num::NonZeroU32, path::Path, sync::Arc};
+use std::{borrow::Cow, num::NonZeroU32, sync::Arc};
 use util::serde::default_true;
 
 /// Initializes the language settings.
@@ -60,7 +60,6 @@ pub fn all_language_settings<'a>(
 #[derive(Debug, Clone)]
 pub struct AllLanguageSettings {
     /// The edit prediction settings.
-    pub edit_predictions: EditPredictionSettings,
     defaults: LanguageSettings,
     languages: HashMap<LanguageName, LanguageSettings>,
     pub(crate) file_types: HashMap<Arc<str>, GlobSet>,
@@ -114,12 +113,6 @@ pub struct LanguageSettings {
     /// Note: This setting has no effect in Vim mode, as rewrap is already
     /// allowed everywhere.
     pub allow_rewrap: RewrapBehavior,
-    /// Controls whether edit predictions are shown immediately (true)
-    /// or manually by triggering `editor::ShowEditPrediction` (false).
-    pub show_edit_predictions: bool,
-    /// Controls whether edit predictions are shown in the given language
-    /// scopes.
-    pub edit_predictions_disabled_in: Vec<String>,
     /// Whether to show tabs and spaces in the editor.
     pub show_whitespaces: ShowWhitespaceSetting,
     /// Whether to start a new line with a comment when a previous line is a comment as well.
@@ -200,73 +193,9 @@ impl LanguageSettings {
     }
 }
 
-/// The provider that supplies edit predictions.
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum EditPredictionProvider {
-    None,
-    #[default]
-    Copilot,
-    Supermaven,
-    Zed,
-}
-
-impl EditPredictionProvider {
-    pub fn is_zed(&self) -> bool {
-        match self {
-            EditPredictionProvider::Zed => true,
-            EditPredictionProvider::None
-            | EditPredictionProvider::Copilot
-            | EditPredictionProvider::Supermaven => false,
-        }
-    }
-}
-
-/// The settings for edit predictions, such as [GitHub Copilot](https://github.com/features/copilot)
-/// or [Supermaven](https://supermaven.com).
-#[derive(Clone, Debug, Default)]
-pub struct EditPredictionSettings {
-    /// The provider that supplies edit predictions.
-    pub provider: EditPredictionProvider,
-    /// A list of globs representing files that edit predictions should be disabled for.
-    /// This list adds to a pre-existing, sensible default set of globs.
-    /// Any additional ones you add are combined with them.
-    pub disabled_globs: Vec<GlobMatcher>,
-    /// Configures how edit predictions are displayed in the buffer.
-    pub mode: EditPredictionsMode,
-    /// Settings specific to GitHub Copilot.
-    pub copilot: CopilotSettings,
-}
-
-/// The mode in which edit predictions should be displayed.
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum EditPredictionsMode {
-    /// If provider supports it, display inline when holding modifier key (e.g., alt).
-    /// Otherwise, eager preview is used.
-    Auto,
-    /// Display inline when there are no language server completions available.
-    #[default]
-    EagerPreview,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct CopilotSettings {
-    /// HTTP/HTTPS proxy to use for Copilot.
-    pub proxy: Option<String>,
-    /// Disable certificate verification for proxy (not recommended).
-    pub proxy_no_verify: Option<bool>,
-}
-
 /// The settings for all languages.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct AllLanguageSettingsContent {
-    /// The settings for enabling/disabling features.
-    #[serde(default)]
-    pub features: Option<FeaturesContent>,
-    /// The edit prediction settings.
-    #[serde(default)]
-    pub edit_predictions: Option<EditPredictionSettingsContent>,
     /// The default language settings.
     #[serde(flatten)]
     pub defaults: LanguageSettingsContent,
@@ -372,20 +301,6 @@ pub struct LanguageSettingsContent {
     /// Default: "in_comments"
     #[serde(default)]
     pub allow_rewrap: Option<RewrapBehavior>,
-    /// Controls whether edit predictions are shown immediately (true)
-    /// or manually by triggering `editor::ShowEditPrediction` (false).
-    ///
-    /// Default: true
-    #[serde(default)]
-    pub show_edit_predictions: Option<bool>,
-    /// Controls whether edit predictions are shown in the given language
-    /// scopes.
-    ///
-    /// Example: ["string", "comment"]
-    ///
-    /// Default: []
-    #[serde(default)]
-    pub edit_predictions_disabled_in: Option<Vec<String>>,
     /// Whether to show tabs and spaces in the editor.
     #[serde(default)]
     pub show_whitespaces: Option<ShowWhitespaceSetting>,
@@ -461,47 +376,6 @@ pub enum RewrapBehavior {
     InSelections,
     /// Allow rewrapping anywhere.
     Anywhere,
-}
-
-/// The contents of the edit prediction settings.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct EditPredictionSettingsContent {
-    /// A list of globs representing files that edit predictions should be disabled for.
-    /// This list adds to a pre-existing, sensible default set of globs.
-    /// Any additional ones you add are combined with them.
-    #[serde(default)]
-    pub disabled_globs: Option<Vec<String>>,
-    /// The mode used to display edit predictions in the buffer.
-    /// Provider support required.
-    #[serde(default)]
-    pub mode: EditPredictionsMode,
-    /// Settings specific to GitHub Copilot.
-    #[serde(default)]
-    pub copilot: CopilotSettingsContent,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct CopilotSettingsContent {
-    /// HTTP/HTTPS proxy to use for Copilot.
-    ///
-    /// Default: none
-    #[serde(default)]
-    pub proxy: Option<String>,
-    /// Disable certificate verification for the proxy (not recommended).
-    ///
-    /// Default: false
-    #[serde(default)]
-    pub proxy_no_verify: Option<bool>,
-}
-
-/// The settings for enabling/disabling features.
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct FeaturesContent {
-    /// Whether the GitHub Copilot feature is enabled.
-    pub copilot: Option<bool>,
-    /// Determines which edit prediction provider to use.
-    pub edit_prediction_provider: Option<EditPredictionProvider>,
 }
 
 /// Controls the soft-wrapping behavior in the editor.
@@ -961,26 +835,6 @@ impl AllLanguageSettings {
             Cow::Borrowed(settings)
         }
     }
-
-    /// Returns whether edit predictions are enabled for the given path.
-    pub fn inline_completions_enabled_for_path(&self, path: &Path) -> bool {
-        !self
-            .edit_predictions
-            .disabled_globs
-            .iter()
-            .any(|glob| glob.is_match(path))
-    }
-
-    /// Returns whether edit predictions are enabled for the given language and path.
-    pub fn show_inline_completions(&self, language: Option<&Arc<Language>>, cx: &App) -> bool {
-        self.language(None, language.map(|l| l.name()).as_ref(), cx)
-            .show_edit_predictions
-    }
-
-    /// Returns the edit predictions preview mode for the given language and path.
-    pub fn edit_predictions_mode(&self) -> EditPredictionsMode {
-        self.edit_predictions.mode
-    }
 }
 
 fn merge_with_editorconfig(settings: &mut LanguageSettings, cfg: &EditorconfigProperties) {
@@ -1073,34 +927,6 @@ impl settings::Settings for AllLanguageSettings {
             languages.insert(language_name.clone(), language_settings);
         }
 
-        let mut copilot_enabled = default_value.features.as_ref().and_then(|f| f.copilot);
-        let mut edit_prediction_provider = default_value
-            .features
-            .as_ref()
-            .and_then(|f| f.edit_prediction_provider);
-        let mut edit_predictions_mode = default_value
-            .edit_predictions
-            .as_ref()
-            .map(|edit_predictions| edit_predictions.mode)
-            .ok_or_else(Self::missing_default)?;
-
-        let mut completion_globs: HashSet<&String> = default_value
-            .edit_predictions
-            .as_ref()
-            .and_then(|c| c.disabled_globs.as_ref())
-            .map(|globs| globs.iter().collect())
-            .ok_or_else(Self::missing_default)?;
-
-        let mut copilot_settings = default_value
-            .edit_predictions
-            .as_ref()
-            .map(|settings| settings.copilot.clone())
-            .map(|copilot| CopilotSettings {
-                proxy: copilot.proxy,
-                proxy_no_verify: copilot.proxy_no_verify,
-            })
-            .unwrap_or_default();
-
         let mut file_types: HashMap<Arc<str>, GlobSet> = HashMap::default();
 
         for (language, suffixes) in &default_value.file_types {
@@ -1114,41 +940,6 @@ impl settings::Settings for AllLanguageSettings {
         }
 
         for user_settings in sources.customizations() {
-            if let Some(copilot) = user_settings.features.as_ref().and_then(|f| f.copilot) {
-                copilot_enabled = Some(copilot);
-            }
-            if let Some(provider) = user_settings
-                .features
-                .as_ref()
-                .and_then(|f| f.edit_prediction_provider)
-            {
-                edit_prediction_provider = Some(provider);
-            }
-
-            if let Some(edit_predictions) = user_settings.edit_predictions.as_ref() {
-                edit_predictions_mode = edit_predictions.mode;
-
-                if let Some(disabled_globs) = edit_predictions.disabled_globs.as_ref() {
-                    completion_globs.extend(disabled_globs.iter());
-                }
-            }
-
-            if let Some(proxy) = user_settings
-                .edit_predictions
-                .as_ref()
-                .and_then(|settings| settings.copilot.proxy.clone())
-            {
-                copilot_settings.proxy = Some(proxy);
-            }
-
-            if let Some(proxy_no_verify) = user_settings
-                .edit_predictions
-                .as_ref()
-                .and_then(|settings| settings.copilot.proxy_no_verify)
-            {
-                copilot_settings.proxy_no_verify = Some(proxy_no_verify);
-            }
-
             // A user's global settings override the default global settings and
             // all default language-specific settings.
             merge_settings(&mut defaults, &user_settings.defaults);
@@ -1187,21 +978,6 @@ impl settings::Settings for AllLanguageSettings {
         }
 
         Ok(Self {
-            edit_predictions: EditPredictionSettings {
-                provider: if let Some(provider) = edit_prediction_provider {
-                    provider
-                } else if copilot_enabled.unwrap_or(true) {
-                    EditPredictionProvider::Copilot
-                } else {
-                    EditPredictionProvider::None
-                },
-                disabled_globs: completion_globs
-                    .iter()
-                    .filter_map(|g| Some(globset::Glob::new(g).ok()?.compile_matcher()))
-                    .collect(),
-                mode: edit_predictions_mode,
-                copilot: copilot_settings,
-            },
             defaults,
             languages,
             file_types,
@@ -1305,14 +1081,6 @@ fn merge_settings(settings: &mut LanguageSettings, src: &LanguageSettingsContent
     );
     merge(&mut settings.language_servers, src.language_servers.clone());
     merge(&mut settings.allow_rewrap, src.allow_rewrap);
-    merge(
-        &mut settings.show_edit_predictions,
-        src.show_edit_predictions,
-    );
-    merge(
-        &mut settings.edit_predictions_disabled_in,
-        src.edit_predictions_disabled_in.clone(),
-    );
     merge(&mut settings.show_whitespaces, src.show_whitespaces);
     merge(
         &mut settings.extend_comment_on_newline,

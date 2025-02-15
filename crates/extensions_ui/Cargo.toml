@@ -31,7 +31,6 @@ semantic_version.workspace = true
 serde.workspace = true
 settings.workspace = true
 smallvec.workspace = true
-telemetry.workspace = true
 theme.workspace = true
 ui.workspace = true
 util.workspace = true
@@ -41,3 +40,4 @@ zed_actions.workspace = true
 
 [dev-dependencies]
 editor = { workspace = true, features = ["test-support"] }
+

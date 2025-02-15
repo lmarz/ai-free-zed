@@ -14,7 +14,6 @@ use crate::application_menu::{
 };
 
 use crate::platforms::{platform_linux, platform_mac, platform_windows};
-use auto_update::AutoUpdateStatus;
 use call::ActiveCall;
 use client::{Client, UserStore};
 use feature_flags::{FeatureFlagAppExt, ZedPro};
@@ -36,7 +35,6 @@ use ui::{
 use util::ResultExt;
 use workspace::{notifications::NotifyResultExt, Workspace};
 use zed_actions::{OpenBrowser, OpenRecent, OpenRemote};
-use zeta::ZedPredictBanner;
 
 #[cfg(feature = "stories")]
 pub use stories::*;
@@ -125,7 +123,6 @@ pub struct TitleBar {
     should_move: bool,
     application_menu: Option<Entity<ApplicationMenu>>,
     _subscriptions: Vec<Subscription>,
-    zed_predict_banner: Entity<ZedPredictBanner>,
 }
 
 impl Render for TitleBar {
@@ -209,7 +206,6 @@ impl Render for TitleBar {
                             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation()),
                     )
                     .child(self.render_collaborator_list(window, cx))
-                    .child(self.zed_predict_banner.clone())
                     .child(
                         h_flex()
                             .gap_1()
@@ -222,7 +218,7 @@ impl Render for TitleBar {
                                 if matches!(status, client::Status::Connected { .. }) {
                                     el.child(self.render_user_menu_button(cx))
                                 } else {
-                                    el.children(self.render_connection_status(status, cx))
+                                    el.children(self.render_connection_status(status))
                                         .child(self.render_sign_in_button(cx))
                                         .child(self.render_user_menu_button(cx))
                                 }
@@ -312,8 +308,6 @@ impl TitleBar {
         subscriptions.push(cx.observe_window_activation(window, Self::window_activation_changed));
         subscriptions.push(cx.observe(&user_store, |_, _, cx| cx.notify()));
 
-        let zed_predict_banner = cx.new(ZedPredictBanner::new);
-
         Self {
             platform_style,
             content: div().id(id.into()),
@@ -325,7 +319,6 @@ impl TitleBar {
             user_store,
             client,
             _subscriptions: subscriptions,
-            zed_predict_banner,
         }
     }
 
@@ -585,7 +578,6 @@ impl TitleBar {
     fn render_connection_status(
         &self,
         status: &client::Status,
-        cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         match status {
             client::Status::ConnectionError
@@ -599,33 +591,6 @@ impl TitleBar {
                     .tooltip(Tooltip::text("Disconnected"))
                     .into_any_element(),
             ),
-            client::Status::UpgradeRequired => {
-                let auto_updater = auto_update::AutoUpdater::get(cx);
-                let label = match auto_updater.map(|auto_update| auto_update.read(cx).status()) {
-                    Some(AutoUpdateStatus::Updated { .. }) => "Please restart Zed to Collaborate",
-                    Some(AutoUpdateStatus::Installing)
-                    | Some(AutoUpdateStatus::Downloading)
-                    | Some(AutoUpdateStatus::Checking) => "Updating...",
-                    Some(AutoUpdateStatus::Idle) | Some(AutoUpdateStatus::Errored) | None => {
-                        "Please update Zed to Collaborate"
-                    }
-                };
-
-                Some(
-                    Button::new("connection-status", label)
-                        .label_size(LabelSize::Small)
-                        .on_click(|_, window, cx| {
-                            if let Some(auto_updater) = auto_update::AutoUpdater::get(cx) {
-                                if auto_updater.read(cx).status().is_updated() {
-                                    workspace::reload(&Default::default(), cx);
-                                    return;
-                                }
-                            }
-                            auto_update::check(&Default::default(), window, cx);
-                        })
-                        .into_any_element(),
-                )
-            }
             _ => None,
         }
     }

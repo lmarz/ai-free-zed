@@ -2716,14 +2716,8 @@ fn section_motion(
 #[cfg(test)]
 mod test {
 
-    use crate::{
-        state::Mode,
-        test::{NeovimBackedTestContext, VimTestContext},
-    };
-    use editor::display_map::Inlay;
+    use crate::test::NeovimBackedTestContext;
     use indoc::indoc;
-    use language::Point;
-    use multi_buffer::MultiBufferRow;
 
     #[gpui::test]
     async fn test_start_end_of_paragraph(cx: &mut gpui::TestAppContext) {
@@ -3383,67 +3377,5 @@ mod test {
               return
             }ˇ»
         "});
-    }
-
-    #[gpui::test]
-    async fn test_clipping_with_inlay_hints(cx: &mut gpui::TestAppContext) {
-        let mut cx = VimTestContext::new(cx, true).await;
-
-        cx.set_state(
-            indoc! {"
-                struct Foo {
-                ˇ
-                }
-            "},
-            Mode::Normal,
-        );
-
-        cx.update_editor(|editor, _window, cx| {
-            let range = editor.selections.newest_anchor().range();
-            let inlay_text = "  field: int,\n  field2: string\n  field3: float";
-            let inlay = Inlay::inline_completion(1, range.start, inlay_text);
-            editor.splice_inlays(&[], vec![inlay], cx);
-        });
-
-        cx.simulate_keystrokes("j");
-        cx.assert_state(
-            indoc! {"
-                struct Foo {
-
-                ˇ}
-            "},
-            Mode::Normal,
-        );
-    }
-
-    #[gpui::test]
-    async fn test_clipping_with_inlay_hints_end_of_line(cx: &mut gpui::TestAppContext) {
-        let mut cx = VimTestContext::new(cx, true).await;
-
-        cx.set_state(
-            indoc! {"
-            ˇstruct Foo {
-
-            }
-        "},
-            Mode::Normal,
-        );
-        cx.update_editor(|editor, _window, cx| {
-            let snapshot = editor.buffer().read(cx).snapshot(cx);
-            let end_of_line =
-                snapshot.anchor_after(Point::new(0, snapshot.line_len(MultiBufferRow(0))));
-            let inlay_text = " hint";
-            let inlay = Inlay::inline_completion(1, end_of_line, inlay_text);
-            editor.splice_inlays(&[], vec![inlay], cx);
-        });
-        cx.simulate_keystrokes("$");
-        cx.assert_state(
-            indoc! {"
-            struct Foo ˇ{
-
-            }
-        "},
-            Mode::Normal,
-        );
     }
 }
