@@ -1,8 +1,6 @@
 mod markdown_preview;
 mod repl_menu;
 
-use assistant::AssistantPanel;
-use assistant_settings::AssistantSettings;
 use editor::actions::{
     AddSelectionAbove, AddSelectionBelow, DuplicateLineDown, GoToDiagnostic, GoToHunk,
     GoToPrevDiagnostic, GoToPrevHunk, MoveLineDown, MoveLineUp, SelectAll, SelectLargerSyntaxNode,
@@ -16,14 +14,14 @@ use gpui::{
 use search::{buffer_search, BufferSearchBar};
 use settings::{Settings, SettingsStore};
 use ui::{
-    prelude::*, ButtonStyle, ContextMenu, ContextMenuEntry, IconButton, IconButtonShape, IconName,
+    prelude::*, ButtonStyle, ContextMenu, IconButton, IconButtonShape, IconName,
     IconSize, PopoverMenu, PopoverMenuHandle, Tooltip,
 };
 use vim_mode_setting::VimModeSetting;
 use workspace::{
     item::ItemHandle, ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, Workspace,
 };
-use zed_actions::{assistant::InlineAssist, outline::ToggleOutline};
+use zed_actions::outline::ToggleOutline;
 
 pub struct QuickActionBar {
     _inlay_hints_enabled_subscription: Option<Subscription>,
@@ -94,8 +92,6 @@ impl Render for QuickActionBar {
             git_blame_inline_enabled,
             show_git_blame_gutter,
             auto_signature_help_enabled,
-            show_inline_completions,
-            inline_completion_enabled,
         ) = {
             let editor = editor.read(cx);
             let selection_menu_enabled = editor.selection_menu_enabled(cx);
@@ -104,8 +100,6 @@ impl Render for QuickActionBar {
             let git_blame_inline_enabled = editor.git_blame_inline_enabled();
             let show_git_blame_gutter = editor.show_git_blame_gutter();
             let auto_signature_help_enabled = editor.auto_signature_help_enabled(cx);
-            let show_edit_predictions = editor.edit_predictions_enabled();
-            let inline_completion_enabled = editor.inline_completions_enabled(cx);
 
             (
                 selection_menu_enabled,
@@ -114,8 +108,6 @@ impl Render for QuickActionBar {
                 git_blame_inline_enabled,
                 show_git_blame_gutter,
                 auto_signature_help_enabled,
-                show_edit_predictions,
-                inline_completion_enabled,
             )
         };
 
@@ -139,30 +131,6 @@ impl Render for QuickActionBar {
                 },
             )
         });
-
-        let assistant_button = QuickActionBarButton::new(
-            "toggle inline assistant",
-            IconName::ZedAssistant,
-            false,
-            Box::new(InlineAssist::default()),
-            focus_handle.clone(),
-            "Inline Assist",
-            {
-                let workspace = self.workspace.clone();
-                move |_, window, cx| {
-                    if let Some(workspace) = workspace.upgrade() {
-                        workspace.update(cx, |workspace, cx| {
-                            AssistantPanel::inline_assist(
-                                workspace,
-                                &InlineAssist::default(),
-                                window,
-                                cx,
-                            );
-                        });
-                    }
-                }
-            },
-        );
 
         let editor_selections_dropdown = selection_menu_enabled.then(|| {
             let focus = editor.focus_handle(cx);
@@ -298,33 +266,6 @@ impl Render for QuickActionBar {
                                 },
                             );
 
-                            let mut inline_completion_entry = ContextMenuEntry::new("Edit Predictions")
-                                .toggleable(IconPosition::Start, inline_completion_enabled && show_inline_completions)
-                                .disabled(!inline_completion_enabled)
-                                .action(Some(
-                                    editor::actions::ToggleEditPrediction.boxed_clone(),
-                                )).handler({
-                                    let editor = editor.clone();
-                                    move |window, cx| {
-                                        editor
-                                            .update(cx, |editor, cx| {
-                                                editor.toggle_inline_completions(
-                                                    &editor::actions::ToggleEditPrediction,
-                                                    window,
-                                                    cx,
-                                                );
-                                            })
-                                            .ok();
-                                    }
-                                });
-                            if !inline_completion_enabled {
-                                inline_completion_entry = inline_completion_entry.documentation_aside(|_| {
-                                    Label::new("You can't toggle edit predictions for this file as it is within the excluded files list.").into_any_element()
-                                });
-                            }
-
-                            menu = menu.item(inline_completion_entry);
-
                             menu = menu.separator();
 
                             menu = menu.toggleable_entry(
@@ -398,11 +339,6 @@ impl Render for QuickActionBar {
             .children(self.render_repl_menu(cx))
             .children(self.render_toggle_markdown_preview(self.workspace.clone(), cx))
             .children(search_button)
-            .when(
-                AssistantSettings::get_global(cx).enabled
-                    && AssistantSettings::get_global(cx).button,
-                |bar| bar.child(assistant_button),
-            )
             .children(editor_selections_dropdown)
             .child(editor_settings_dropdown)
     }
