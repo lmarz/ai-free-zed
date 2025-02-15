@@ -1,8 +1,7 @@
 use std::collections::BTreeSet;
 use std::{path::PathBuf, sync::Arc};
 
-use anyhow::{Context as _, Result};
-use auto_update::AutoUpdater;
+use anyhow::{Context as _, Result, anyhow};
 use editor::Editor;
 use extension_host::ExtensionStore;
 use futures::channel::oneshot;
@@ -447,6 +446,26 @@ impl ModalView for RemoteConnectionModal {
     }
 }
 
+async fn download_remote_server_release(
+    _os: &str,
+    _arch: &str,
+    _release_channel: ReleaseChannel,
+    _version: Option<SemanticVersion>,
+    _cx: &mut AsyncApp,
+) -> Result<PathBuf> {
+    Err(anyhow!("Stub"))
+}
+
+async fn get_remote_server_release_url(
+    _os: &str,
+    _arch: &str,
+    _release_channel: ReleaseChannel,
+    _version: Option<SemanticVersion>,
+    _cx: &mut AsyncApp,
+) -> Result<Option<(String, String)>> {
+    Ok(None)
+}
+
 #[derive(Clone)]
 pub struct RemoteClientDelegate {
     window: AnyWindowHandle,
@@ -482,7 +501,7 @@ impl remote::RemoteClientDelegate for RemoteClientDelegate {
         cx: &mut AsyncApp,
     ) -> Task<anyhow::Result<PathBuf>> {
         cx.spawn(async move |cx| {
-            let binary_path = AutoUpdater::download_remote_server_release(
+            let binary_path = download_remote_server_release(
                 platform.os,
                 platform.arch,
                 release_channel,
@@ -512,14 +531,8 @@ impl remote::RemoteClientDelegate for RemoteClientDelegate {
         cx: &mut AsyncApp,
     ) -> Task<Result<Option<(String, String)>>> {
         cx.spawn(async move |cx| {
-            AutoUpdater::get_remote_server_release_url(
-                platform.os,
-                platform.arch,
-                release_channel,
-                version,
-                cx,
-            )
-            .await
+            get_remote_server_release_url(platform.os, platform.arch, release_channel, version, cx)
+                .await
         })
     }
 }
