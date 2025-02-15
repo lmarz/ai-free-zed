@@ -1,5 +1,4 @@
 mod app_menus;
-pub mod inline_completion_registry;
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub(crate) mod linux_prompts;
 #[cfg(target_os = "macos")]
@@ -13,7 +12,6 @@ pub(crate) mod windows_only_instance;
 use anyhow::Context as _;
 pub use app_menus::*;
 use assets::Assets;
-use assistant_context_editor::AssistantPanelDelegate;
 use breadcrumbs::Breadcrumbs;
 use client::{zed_urls, ZED_URL_SCHEME};
 use collections::VecDeque;
@@ -38,7 +36,6 @@ use outline_panel::OutlinePanel;
 use paths::{local_settings_file_relative_path, local_tasks_file_relative_path};
 use project::{DirectoryLister, ProjectItem};
 use project_panel::ProjectPanel;
-use prompt_store::PromptBuilder;
 use quick_action_bar::QuickActionBar;
 use recent_projects::open_ssh_project;
 use release_channel::{AppCommitSha, ReleaseChannel};
@@ -52,11 +49,10 @@ use settings::{
 use std::any::TypeId;
 use std::path::PathBuf;
 use std::sync::atomic::{self, AtomicBool};
-use std::time::Duration;
 use std::{borrow::Cow, ops::Deref, path::Path, sync::Arc};
 use terminal_view::terminal_panel::{self, TerminalPanel};
 use theme::{ActiveTheme, ThemeSettings};
-use ui::{prelude::*, PopoverMenuHandle};
+use ui::prelude::*;
 use util::markdown::MarkdownString;
 use util::{asset_str, ResultExt};
 use uuid::Uuid;
@@ -156,7 +152,6 @@ pub fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowO
 
 pub fn initialize_workspace(
     app_state: Arc<AppState>,
-    prompt_builder: Arc<PromptBuilder>,
     cx: &mut App,
 ) {
     let mut _on_close_subscription = bind_on_window_closed(cx);
@@ -197,23 +192,6 @@ pub fn initialize_workspace(
             show_software_emulation_warning_if_needed(specs, window, cx);
         }
 
-        let popover_menu_handle = PopoverMenuHandle::default();
-
-        let inline_completion_button = cx.new(|cx| {
-            inline_completion_button::InlineCompletionButton::new(
-                app_state.fs.clone(),
-                app_state.user_store.clone(),
-                popover_menu_handle.clone(),
-                cx,
-            )
-        });
-
-        workspace.register_action({
-            move |_, _: &inline_completion_button::ToggleMenu, window, cx| {
-                popover_menu_handle.toggle(window, cx);
-            }
-        });
-
         let diagnostic_summary =
             cx.new(|cx| diagnostics::items::DiagnosticIndicator::new(workspace, cx));
         let activity_indicator = activity_indicator::ActivityIndicator::new(
@@ -233,7 +211,6 @@ pub fn initialize_workspace(
         workspace.status_bar().update(cx, |status_bar, cx| {
             status_bar.add_left_item(diagnostic_summary, window, cx);
             status_bar.add_left_item(activity_indicator, window, cx);
-            status_bar.add_right_item(inline_completion_button, window, cx);
             status_bar.add_right_item(active_buffer_language, window, cx);
             status_bar.add_right_item(active_toolchain_language, window, cx);
             status_bar.add_right_item(vim_mode_indicator, window, cx);
@@ -252,7 +229,7 @@ pub fn initialize_workspace(
                 .unwrap_or(true)
         });
 
-        initialize_panels(prompt_builder.clone(), window, cx);
+        initialize_panels(window, cx);
         register_actions(app_state.clone(), workspace, window, cx);
 
         workspace.focus_handle(cx).focus(window);
@@ -384,15 +361,9 @@ fn show_software_emulation_warning_if_needed(
 }
 
 fn initialize_panels(
-    prompt_builder: Arc<PromptBuilder>,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    let assistant2_feature_flag =
-        cx.wait_for_flag_or_timeout::<feature_flags::Assistant2FeatureFlag>(Duration::from_secs(5));
-
-    let prompt_builder = prompt_builder.clone();
-
     cx.spawn_in(window, |workspace_handle, mut cx| async move {
         let project_panel = ProjectPanel::load(workspace_handle.clone(), cx.clone());
         let outline_panel = OutlinePanel::load(workspace_handle.clone(), cx.clone());
@@ -436,71 +407,6 @@ fn initialize_panels(
             workspace.add_panel(git_panel, window, cx);
         })?;
 
-        let is_assistant2_enabled = if cfg!(test) {
-            false
-        } else {
-            assistant2_feature_flag.await
-        };
-
-        let (assistant_panel, assistant2_panel) = if is_assistant2_enabled {
-            log::info!("[assistant2-debug] initializing Assistant2");
-            let assistant2_panel = assistant2::AssistantPanel::load(
-                workspace_handle.clone(),
-                prompt_builder,
-                cx.clone(),
-            )
-            .await?;
-            log::info!("[assistant2-debug] finished initializing Assistant2");
-
-            (None, Some(assistant2_panel))
-        } else {
-            let assistant_panel = assistant::AssistantPanel::load(
-                workspace_handle.clone(),
-                prompt_builder.clone(),
-                cx.clone(),
-            )
-            .await?;
-
-            (Some(assistant_panel), None)
-        };
-
-        workspace_handle.update_in(&mut cx, |workspace, window, cx| {
-            if let Some(assistant2_panel) = assistant2_panel {
-                log::info!("[assistant2-debug] adding Assistant2 panel");
-                workspace.add_panel(assistant2_panel, window, cx);
-            }
-
-            if let Some(assistant_panel) = assistant_panel {
-                workspace.add_panel(assistant_panel, window, cx);
-            }
-
-            // Register the actions that are shared between `assistant` and `assistant2`.
-            //
-            // We need to do this here instead of within the individual `init`
-            // functions so that we only register the actions once.
-            //
-            // Once we ship `assistant2` we can push this back down into `assistant2::assistant_panel::init`.
-            if is_assistant2_enabled {
-                <dyn AssistantPanelDelegate>::set_global(
-                    Arc::new(assistant2::ConcreteAssistantPanelDelegate),
-                    cx,
-                );
-
-                workspace
-                    .register_action(assistant2::AssistantPanel::toggle_focus)
-                    .register_action(assistant2::InlineAssistant::inline_assist);
-            } else {
-                <dyn AssistantPanelDelegate>::set_global(
-                    Arc::new(assistant::assistant_panel::ConcreteAssistantPanelDelegate),
-                    cx,
-                );
-
-                workspace
-                    .register_action(assistant::AssistantPanel::toggle_focus)
-                    .register_action(assistant::AssistantPanel::inline_assist);
-            }
-        })?;
-
         anyhow::Ok(())
     })
     .detach();
@@ -528,7 +434,6 @@ fn register_actions(
         })
         .register_action(|_, action: &OpenBrowser, _window, cx| cx.open_url(&action.url))
         .register_action(|workspace, _: &workspace::Open, window, cx| {
-            telemetry::event!("Project Opened");
             let paths = workspace.prompt_for_open_path(
                 PathPromptOptions {
                     files: true,
@@ -694,14 +599,6 @@ fn register_actions(
                 cx,
             );
         })
-        .register_action(
-            move |workspace: &mut Workspace,
-                  _: &zed_actions::OpenTelemetryLog,
-                  window: &mut Window,
-                  cx: &mut Context<Workspace>| {
-                open_telemetry_log_file(workspace, window, cx);
-            },
-        )
         .register_action(
             move |_: &mut Workspace,
                   _: &zed_actions::OpenKeymap,
@@ -1587,60 +1484,6 @@ fn open_local_file(
             cx.new(|cx| MessageNotification::new("This project has no folders open.", cx))
         })
     }
-}
-
-fn open_telemetry_log_file(
-    workspace: &mut Workspace,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) {
-    workspace.with_local_workspace(window, cx, move |workspace, window, cx| {
-        let app_state = workspace.app_state().clone();
-        cx.spawn_in(window, |workspace, mut cx| async move {
-            async fn fetch_log_string(app_state: &Arc<AppState>) -> Option<String> {
-                let path = client::telemetry::Telemetry::log_file_path();
-                app_state.fs.load(&path).await.log_err()
-            }
-
-            let log = fetch_log_string(&app_state).await.unwrap_or_else(|| "// No data has been collected yet".to_string());
-
-            const MAX_TELEMETRY_LOG_LEN: usize = 5 * 1024 * 1024;
-            let mut start_offset = log.len().saturating_sub(MAX_TELEMETRY_LOG_LEN);
-            if let Some(newline_offset) = log[start_offset..].find('\n') {
-                start_offset += newline_offset + 1;
-            }
-            let log_suffix = &log[start_offset..];
-            let header = concat!(
-                "// Zed collects anonymous usage data to help us understand how people are using the app.\n",
-                "// Telemetry can be disabled via the `settings.json` file.\n",
-                "// Here is the data that has been reported for the current session:\n",
-            );
-            let content = format!("{}\n{}", header, log_suffix);
-            let json = app_state.languages.language_for_name("JSON").await.log_err();
-
-            workspace.update_in(&mut cx, |workspace, window, cx| {
-                let project = workspace.project().clone();
-                let buffer = project.update(cx, |project, cx| project.create_local_buffer(&content, json, cx));
-                let buffer = cx.new(|cx| {
-                    MultiBuffer::singleton(buffer, cx).with_title("Telemetry Log".into())
-                });
-                workspace.add_item_to_active_pane(
-                    Box::new(cx.new(|cx| {
-                        let mut editor = Editor::for_multibuffer(buffer, Some(project), true, window, cx);
-                        editor.set_read_only(true);
-                        editor.set_breadcrumb_header("Telemetry Log".into());
-                        editor
-                    })),
-                    None,
-                    true,
-                    window, cx,
-                );
-            }).log_err()?;
-
-            Some(())
-        })
-        .detach();
-    }).detach();
 }
 
 fn open_bundled_file(
@@ -4259,30 +4102,11 @@ mod tests {
             project_panel::init(cx);
             outline_panel::init(cx);
             terminal_view::init(cx);
-            copilot::copilot_chat::init(
-                app_state.fs.clone(),
-                app_state.client.http_client().clone(),
-                cx,
-            );
             image_viewer::init(cx);
-            language_model::init(app_state.client.clone(), cx);
-            language_models::init(
-                app_state.user_store.clone(),
-                app_state.client.clone(),
-                app_state.fs.clone(),
-                cx,
-            );
-            let prompt_builder = PromptBuilder::load(app_state.fs.clone(), false, cx);
-            assistant::init(
-                app_state.fs.clone(),
-                app_state.client.clone(),
-                prompt_builder.clone(),
-                cx,
-            );
             repl::init(app_state.fs.clone(), cx);
             repl::notebook::init(cx);
             tasks_ui::init(cx);
-            initialize_workspace(app_state.clone(), prompt_builder, cx);
+            initialize_workspace(app_state.clone(), cx);
             search::init(cx);
             app_state
         })

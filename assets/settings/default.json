@@ -22,11 +22,6 @@
   // 5. "SublimeText"
   // 6. "TextMate"
   "base_keymap": "VSCode",
-  // Features that can be globally enabled or disabled
-  "features": {
-    // Which edit prediction provider to use.
-    "edit_prediction_provider": "copilot"
-  },
   // The name of a font to use for rendering text in the editor
   "buffer_font_family": "Zed Plex Mono",
   // Set the buffer text's font fallbacks, this will be merged with
@@ -228,12 +223,6 @@
   //
   // Note: This setting has no effect in Vim mode, as rewrap is already allowed everywhere.
   "allow_rewrap": "in_comments",
-  // Controls whether edit predictions are shown immediately (true)
-  // or manually by triggering `editor::ShowEditPrediction` (false).
-  "show_edit_predictions": true,
-  // Controls whether edit predictions are shown in a given language scope.
-  // Example: ["string", "comment"]
-  "edit_predictions_disabled_in": [],
   // Whether to show tabs and spaces in the editor.
   // This setting can take four values:
   //
@@ -581,40 +570,6 @@
     // Default width of the notification panel.
     "default_width": 380
   },
-  "assistant": {
-    // Version of this setting.
-    "version": "2",
-    // Whether the assistant is enabled.
-    "enabled": true,
-    // Whether to show the assistant panel button in the status bar.
-    "button": true,
-    // Where to dock the assistant panel. Can be 'left', 'right' or 'bottom'.
-    "dock": "right",
-    // Default width when the assistant is docked to the left or right.
-    "default_width": 640,
-    // Default height when the assistant is docked to the bottom.
-    "default_height": 320,
-    // The default model to use when creating new chats.
-    "default_model": {
-      // The provider to use.
-      "provider": "zed.dev",
-      // The model to use.
-      "model": "claude-3-5-sonnet-latest"
-    }
-  },
-  // The settings for slash commands.
-  "slash_commands": {
-    // Settings for the `/docs` slash command.
-    "docs": {
-      // Whether `/docs` is enabled.
-      "enabled": false
-    },
-    // Settings for the `/project` slash command.
-    "project": {
-      // Whether `/project` is enabled.
-      "enabled": false
-    }
-  },
   // Whether the screen sharing icon is shown in the os status bar.
   "show_call_status_icon": true,
   // Whether to use language servers to provide code intelligence.
@@ -771,16 +726,6 @@
   "hard_tabs": false,
   // How many columns a tab should occupy.
   "tab_size": 4,
-  // Control what info is collected by Zed.
-  "telemetry": {
-    // Send debug info like crash reports.
-    "diagnostics": true,
-    // Send anonymized usage data like what languages you're using Zed with.
-    "metrics": true
-  },
-  // Automatically update Zed. This setting may be ignored on Linux if
-  // installed through a package manager.
-  "auto_update": true,
   // Diagnostics configuration.
   "diagnostics": {
     // Whether to show warnings or not by default.
@@ -851,24 +796,6 @@
   // 2. Load direnv configuration through the shell hook, works for POSIX shells and fish.
   //      "load_direnv": "shell_hook"
   "load_direnv": "direct",
-  "edit_predictions": {
-    // A list of globs representing files that edit predictions should be disabled for.
-    // There's a sensible default list of globs already included.
-    // Any addition to this list will be merged with the default list.
-    // Globs are matched relative to the worktree root,
-    // except when starting with a slash (/) or equivalent in Windows.
-    "disabled_globs": ["**/.env*", "**/*.pem", "**/*.key", "**/*.cert", "**/*.crt", "**/.dev.vars", "**/secrets.yml"],
-    // When to show edit predictions previews in buffer.
-    // This setting takes two possible values:
-    // 1. Display predictions inline when there are no language server completions available.
-    //     "mode": "eager"
-    // 2. Display predictions inline only when holding a modifier key (alt by default).
-    //     "mode": "subtle"
-    "mode": "eager",
-    // Whether edit predictions are enabled in the assistant panel.
-    // This setting has no effect if globally disabled.
-    "enabled_in_assistant": true
-  },
   // Settings specific to journaling
   "journal": {
     // The path of the directory where journal entries are stored
@@ -1399,7 +1326,5 @@
   //     ]
   //   }
   // ]
-  "ssh_connections": [],
-  // Configures context servers for use in the Assistant.
-  "context_servers": {}
+  "ssh_connections": []
 }
