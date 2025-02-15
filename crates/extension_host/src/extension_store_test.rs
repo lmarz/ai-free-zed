@@ -283,7 +283,6 @@ async fn test_extension_store(cx: &mut TestAppContext) {
             fs.clone(),
             http_client.clone(),
             http_client.clone(),
-            None,
             node_runtime.clone(),
             cx,
         )
@@ -429,7 +428,6 @@ async fn test_extension_store(cx: &mut TestAppContext) {
             fs.clone(),
             http_client.clone(),
             http_client.clone(),
-            None,
             node_runtime.clone(),
             cx,
         )
@@ -657,7 +655,6 @@ async fn test_extension_store_with_test_extension(cx: &mut TestAppContext) {
             fs.clone(),
             extension_client.clone(),
             builder_client,
-            None,
             node_runtime,
             cx,
         )

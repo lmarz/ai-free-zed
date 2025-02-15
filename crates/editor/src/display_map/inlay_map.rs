@@ -81,15 +81,6 @@ impl Inlay {
         }
     }
 
-    pub fn inline_completion<T: Into<Rope>>(id: usize, position: Anchor, text: T) -> Self {
-        Self {
-            id: InlayId::InlineCompletion(id),
-            position,
-            text: text.into(),
-            color: None,
-        }
-    }
-
     pub fn debugger<T: Into<Rope>>(id: usize, position: Anchor, text: T) -> Self {
         Self {
             id: InlayId::DebuggerValue(id),
@@ -340,15 +331,6 @@ impl<'a> Iterator for InlayChunks<'a> {
 
                 let mut renderer = None;
                 let mut highlight_style = match inlay.id {
-                    InlayId::InlineCompletion(_) => {
-                        self.highlight_styles.inline_completion.map(|s| {
-                            if inlay.text.chars().all(|c| c.is_whitespace()) {
-                                s.whitespace
-                            } else {
-                                s.insertion
-                            }
-                        })
-                    }
                     InlayId::Hint(_) => self.highlight_styles.inlay_hint,
                     InlayId::DebuggerValue(_) => self.highlight_styles.inlay_hint,
                     InlayId::Color(_) => {
@@ -740,7 +722,7 @@ impl InlayMap {
                         text.clone(),
                     )
                 } else {
-                    Inlay::inline_completion(
+                    Inlay::mock_hint(
                         post_inc(next_inlay_id),
                         snapshot.buffer.anchor_at(position, bias),
                         text.clone(),
@@ -1383,18 +1365,11 @@ mod tests {
 
         let (inlay_snapshot, _) = inlay_map.splice(
             &[],
-            vec![
-                Inlay::mock_hint(
-                    post_inc(&mut next_inlay_id),
-                    buffer.read(cx).snapshot(cx).anchor_before(3),
-                    "|123|",
-                ),
-                Inlay::inline_completion(
-                    post_inc(&mut next_inlay_id),
-                    buffer.read(cx).snapshot(cx).anchor_after(3),
-                    "|456|",
-                ),
-            ],
+            vec![Inlay::mock_hint(
+                post_inc(&mut next_inlay_id),
+                buffer.read(cx).snapshot(cx).anchor_before(3),
+                "|123|",
+            )],
         );
         assert_eq!(inlay_snapshot.text(), "abx|123||456|yDzefghi");
 
@@ -1608,11 +1583,6 @@ mod tests {
                     post_inc(&mut next_inlay_id),
                     buffer.read(cx).snapshot(cx).anchor_before(4),
                     "|456|",
-                ),
-                Inlay::inline_completion(
-                    post_inc(&mut next_inlay_id),
-                    buffer.read(cx).snapshot(cx).anchor_before(7),
-                    "\n|567|\n",
                 ),
             ],
         );
