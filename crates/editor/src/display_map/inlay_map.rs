@@ -9,7 +9,7 @@ use std::{
     ops::{Add, AddAssign, Range, Sub, SubAssign},
 };
 use sum_tree::{Bias, Cursor, SumTree};
-use text::{Patch, Rope};
+use text::Patch;
 
 use super::{custom_highlights::CustomHighlightsChunks, Highlights};
 
@@ -52,14 +52,6 @@ impl Inlay {
         }
         Self {
             id: InlayId::Hint(id),
-            position,
-            text: text.into(),
-        }
-    }
-
-    pub fn inline_completion<T: Into<Rope>>(id: usize, position: Anchor, text: T) -> Self {
-        Self {
-            id: InlayId::InlineCompletion(id),
             position,
             text: text.into(),
         }
@@ -277,15 +269,6 @@ impl<'a> Iterator for InlayChunks<'a> {
                 }
 
                 let mut highlight_style = match inlay.id {
-                    InlayId::InlineCompletion(_) => {
-                        self.highlight_styles.inline_completion.map(|s| {
-                            if inlay.text.chars().all(|c| c.is_whitespace()) {
-                                s.whitespace
-                            } else {
-                                s.insertion
-                            }
-                        })
-                    }
                     InlayId::Hint(_) => self.highlight_styles.inlay_hint,
                 };
                 let next_inlay_highlight_endpoint;
@@ -609,7 +592,7 @@ impl InlayMap {
         let mut to_remove = Vec::new();
         let mut to_insert = Vec::new();
         let snapshot = &mut self.snapshot;
-        for i in 0..rng.gen_range(1..=5) {
+        for _ in 0..rng.gen_range(1..=5) {
             if self.inlays.is_empty() || rng.gen() {
                 let position = snapshot.buffer.random_byte_range(0, rng).start;
                 let bias = if rng.gen() { Bias::Left } else { Bias::Right };
@@ -623,11 +606,7 @@ impl InlayMap {
                     .take(len)
                     .collect::<String>();
 
-                let inlay_id = if i % 2 == 0 {
-                    InlayId::Hint(post_inc(next_inlay_id))
-                } else {
-                    InlayId::InlineCompletion(post_inc(next_inlay_id))
-                };
+                let inlay_id = InlayId::Hint(post_inc(next_inlay_id));
                 log::info!(
                     "creating inlay {:?} at buffer offset {} with bias {:?} and text {:?}",
                     inlay_id,
@@ -1254,11 +1233,6 @@ mod tests {
                     position: buffer.read(cx).snapshot(cx).anchor_before(3),
                     text: "|123|".into(),
                 },
-                Inlay {
-                    id: InlayId::InlineCompletion(post_inc(&mut next_inlay_id)),
-                    position: buffer.read(cx).snapshot(cx).anchor_after(3),
-                    text: "|456|".into(),
-                },
             ],
         );
         assert_eq!(inlay_snapshot.text(), "abx|123||456|yDzefghi");
@@ -1474,11 +1448,6 @@ mod tests {
                     position: buffer.read(cx).snapshot(cx).anchor_before(4),
                     text: "|456|".into(),
                 },
-                Inlay {
-                    id: InlayId::InlineCompletion(post_inc(&mut next_inlay_id)),
-                    position: buffer.read(cx).snapshot(cx).anchor_before(7),
-                    text: "\n|567|\n".into(),
-                },
             ],
         );
         assert_eq!(inlay_snapshot.text(), "|123|\nabc\n|456|def\n|567|\n\nghi");
@@ -1493,6 +1462,8 @@ mod tests {
 
     #[gpui::test(iterations = 100)]
     fn test_random_inlays(cx: &mut App, mut rng: StdRng) {
+        use text::Rope;
+
         init_test(cx);
 
         let operations = env::var("OPERATIONS")
