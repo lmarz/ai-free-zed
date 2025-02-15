@@ -57,14 +57,6 @@ impl Inlay {
         }
     }
 
-    pub fn inline_completion<T: Into<Rope>>(id: usize, position: Anchor, text: T) -> Self {
-        Self {
-            id: InlayId::InlineCompletion(id),
-            position,
-            text: text.into(),
-        }
-    }
-
     pub fn debugger_hint<T: Into<Rope>>(id: usize, position: Anchor, text: T) -> Self {
         Self {
             id: InlayId::DebuggerValue(id),
@@ -285,15 +277,6 @@ impl<'a> Iterator for InlayChunks<'a> {
                 }
 
                 let mut highlight_style = match inlay.id {
-                    InlayId::InlineCompletion(_) => {
-                        self.highlight_styles.inline_completion.map(|s| {
-                            if inlay.text.chars().all(|c| c.is_whitespace()) {
-                                s.whitespace
-                            } else {
-                                s.insertion
-                            }
-                        })
-                    }
                     InlayId::Hint(_) => self.highlight_styles.inlay_hint,
                     InlayId::DebuggerValue(_) => self.highlight_styles.inlay_hint,
                 };
@@ -619,7 +602,7 @@ impl InlayMap {
         let mut to_remove = Vec::new();
         let mut to_insert = Vec::new();
         let snapshot = &mut self.snapshot;
-        for i in 0..rng.gen_range(1..=5) {
+        for _ in 0..rng.gen_range(1..=5) {
             if self.inlays.is_empty() || rng.r#gen() {
                 let position = snapshot.buffer.random_byte_range(0, rng).start;
                 let bias = if rng.r#gen() { Bias::Left } else { Bias::Right };
@@ -633,11 +616,7 @@ impl InlayMap {
                     .take(len)
                     .collect::<String>();
 
-                let inlay_id = if i % 2 == 0 {
-                    InlayId::Hint(post_inc(next_inlay_id))
-                } else {
-                    InlayId::InlineCompletion(post_inc(next_inlay_id))
-                };
+                let inlay_id = InlayId::Hint(post_inc(next_inlay_id));
                 log::info!(
                     "creating inlay {:?} at buffer offset {} with bias {:?} and text {:?}",
                     inlay_id,
@@ -1258,18 +1237,11 @@ mod tests {
 
         let (inlay_snapshot, _) = inlay_map.splice(
             &[],
-            vec![
-                Inlay {
-                    id: InlayId::Hint(post_inc(&mut next_inlay_id)),
-                    position: buffer.read(cx).snapshot(cx).anchor_before(3),
-                    text: "|123|".into(),
-                },
-                Inlay {
-                    id: InlayId::InlineCompletion(post_inc(&mut next_inlay_id)),
-                    position: buffer.read(cx).snapshot(cx).anchor_after(3),
-                    text: "|456|".into(),
-                },
-            ],
+            vec![Inlay {
+                id: InlayId::Hint(post_inc(&mut next_inlay_id)),
+                position: buffer.read(cx).snapshot(cx).anchor_before(3),
+                text: "|123|".into(),
+            }],
         );
         assert_eq!(inlay_snapshot.text(), "abx|123||456|yDzefghi");
 
@@ -1483,11 +1455,6 @@ mod tests {
                     id: InlayId::Hint(post_inc(&mut next_inlay_id)),
                     position: buffer.read(cx).snapshot(cx).anchor_before(4),
                     text: "|456|".into(),
-                },
-                Inlay {
-                    id: InlayId::InlineCompletion(post_inc(&mut next_inlay_id)),
-                    position: buffer.read(cx).snapshot(cx).anchor_before(7),
-                    text: "\n|567|\n".into(),
                 },
             ],
         );

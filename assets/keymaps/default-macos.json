@@ -56,9 +56,7 @@
       "alt-cmd-h": "zed::HideOthers",
       "cmd-m": "zed::Minimize",
       "fn-f": "zed::ToggleFullScreen",
-      "ctrl-cmd-f": "zed::ToggleFullScreen",
-      "ctrl-cmd-z": "edit_prediction::RateCompletions",
-      "ctrl-cmd-i": "edit_prediction::ToggleMenu"
+      "ctrl-cmd-f": "zed::ToggleFullScreen"
     }
   },
   {
@@ -154,8 +152,7 @@
       "f9": "editor::ToggleBreakpoint",
       "shift-f9": "editor::EditLogBreakpoint",
       "ctrl-f12": "editor::GoToDeclaration",
-      "alt-ctrl-f12": "editor::GoToDeclarationSplit",
-      "ctrl-cmd-e": "editor::ToggleEditPrediction"
+      "alt-ctrl-f12": "editor::GoToDeclarationSplit"
     }
   },
   {
@@ -171,8 +168,6 @@
       "cmd-alt-f": "buffer_search::DeployReplace",
       "cmd-alt-l": ["buffer_search::Deploy", { "selection_search_enabled": true }],
       "cmd-e": ["buffer_search::Deploy", { "focus": false }],
-      "cmd->": "assistant::QuoteSelection",
-      "cmd-<": "assistant::InsertIntoEditor",
       "cmd-alt-e": "editor::SelectEnclosingSymbol",
       "alt-enter": "editor::OpenSelectionsInMultibuffer"
     }
@@ -185,22 +180,6 @@
       "cmd-down": "editor::MoveToStartOfNextExcerpt",
       "cmd-shift-up": "editor::SelectToStartOfExcerpt",
       "cmd-shift-down": "editor::SelectToStartOfNextExcerpt"
-    }
-  },
-  {
-    "context": "Editor && mode == full && edit_prediction",
-    "use_key_equivalents": true,
-    "bindings": {
-      "alt-tab": "editor::NextEditPrediction",
-      "alt-shift-tab": "editor::PreviousEditPrediction",
-      "ctrl-cmd-right": "editor::AcceptPartialEditPrediction"
-    }
-  },
-  {
-    "context": "Editor && !edit_prediction",
-    "use_key_equivalents": true,
-    "bindings": {
-      "alt-tab": "editor::ShowEditPrediction"
     }
   },
   {
@@ -238,95 +217,6 @@
     }
   },
   {
-    "context": "AgentDiff",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-y": "agent::Keep",
-      "cmd-n": "agent::Reject",
-      "cmd-shift-y": "agent::KeepAll",
-      "cmd-shift-n": "agent::RejectAll"
-    }
-  },
-  {
-    "context": "Editor && editor_agent_diff",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-y": "agent::Keep",
-      "cmd-n": "agent::Reject",
-      "cmd-shift-y": "agent::KeepAll",
-      "cmd-shift-n": "agent::RejectAll",
-      "shift-ctrl-r": "agent::OpenAgentDiff"
-    }
-  },
-  {
-    "context": "ContextEditor > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-enter": "assistant::Assist",
-      "cmd-shift-enter": "assistant::Edit",
-      "cmd-s": "workspace::Save",
-      "cmd->": "assistant::QuoteSelection",
-      "cmd-<": "assistant::InsertIntoEditor",
-      "shift-enter": "assistant::Split",
-      "ctrl-r": "assistant::CycleMessageRole",
-      "enter": "assistant::ConfirmCommand",
-      "alt-enter": "editor::Newline",
-      "cmd-k c": "assistant::CopyCode",
-      "cmd-g": "search::SelectNextMatch",
-      "cmd-shift-g": "search::SelectPreviousMatch",
-      "cmd-k l": "agent::OpenRulesLibrary"
-    }
-  },
-  {
-    "context": "AgentPanel",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-n": "agent::NewThread",
-      "cmd-alt-n": "agent::NewTextThread",
-      "cmd-shift-h": "agent::OpenHistory",
-      "cmd-alt-c": "agent::OpenConfiguration",
-      "cmd-alt-p": "agent::OpenRulesLibrary",
-      "cmd-i": "agent::ToggleProfileSelector",
-      "cmd-alt-/": "agent::ToggleModelSelector",
-      "cmd-shift-a": "agent::ToggleContextPicker",
-      "cmd-shift-o": "agent::ToggleNavigationMenu",
-      "cmd-shift-i": "agent::ToggleOptionsMenu",
-      "shift-escape": "agent::ExpandMessageEditor",
-      "cmd-alt-e": "agent::RemoveAllContext",
-      "cmd-shift-e": "project_panel::ToggleFocus"
-    }
-  },
-  {
-    "context": "AgentPanel > NavigationMenu",
-    "bindings": {
-      "shift-backspace": "agent::DeleteRecentlyOpenThread"
-    }
-  },
-  {
-    "context": "AgentPanel > Markdown",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-c": "markdown::CopyAsMarkdown"
-    }
-  },
-  {
-    "context": "AgentPanel && prompt_editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-n": "agent::NewTextThread",
-      "cmd-alt-t": "agent::NewThread"
-    }
-  },
-  {
-    "context": "MessageEditor > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "enter": "agent::Chat",
-      "cmd-i": "agent::ToggleProfileSelector",
-      "shift-ctrl-r": "agent::OpenAgentDiff"
-    }
-  },
-  {
     "context": "EditMessageEditor > Editor",
     "use_key_equivalents": true,
     "bindings": {
@@ -336,48 +226,9 @@
     }
   },
   {
-    "context": "AgentFeedbackMessageEditor > Editor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "escape": "menu::Cancel",
-      "enter": "menu::Confirm",
-      "alt-enter": "editor::Newline"
-    }
-  },
-  {
-    "context": "ContextStrip",
-    "use_key_equivalents": true,
-    "bindings": {
-      "up": "agent::FocusUp",
-      "right": "agent::FocusRight",
-      "left": "agent::FocusLeft",
-      "down": "agent::FocusDown",
-      "backspace": "agent::RemoveFocusedContext",
-      "enter": "agent::AcceptSuggestedContext"
-    }
-  },
-  {
-    "context": "AgentConfiguration",
-    "bindings": {
-      "ctrl--": "pane::GoBack"
-    }
-  },
-  {
     "context": "ThreadHistory",
     "bindings": {
       "ctrl--": "pane::GoBack"
-    }
-  },
-  {
-    "context": "ThreadHistory",
-    "bindings": {
-      "ctrl--": "pane::GoBack"
-    }
-  },
-  {
-    "context": "ThreadHistory > Editor",
-    "bindings": {
-      "shift-backspace": "agent::RemoveSelectedThread"
     }
   },
   {
@@ -624,7 +475,6 @@
       "cmd-shift-e": "project_panel::ToggleFocus",
       "cmd-shift-b": "outline_panel::ToggleFocus",
       "ctrl-shift-g": "git_panel::ToggleFocus",
-      "cmd-?": "agent::ToggleFocus",
       "cmd-alt-s": "workspace::SaveAll",
       "cmd-k m": "language_selector::Toggle",
       "escape": "workspace::Unfollow",
@@ -702,20 +552,6 @@
     }
   },
   {
-    "context": "Editor && edit_prediction",
-    "bindings": {
-      "alt-tab": "editor::AcceptEditPrediction",
-      "tab": "editor::AcceptEditPrediction"
-    }
-  },
-  {
-    "context": "Editor && edit_prediction_conflict",
-    "use_key_equivalents": true,
-    "bindings": {
-      "alt-tab": "editor::AcceptEditPrediction"
-    }
-  },
-  {
     "context": "Editor && showing_code_actions",
     "use_key_equivalents": true,
     "bindings": {
@@ -754,29 +590,7 @@
       "cmd-shift-e": "pane::RevealInProjectPanel",
       "cmd-f8": "editor::GoToHunk",
       "cmd-shift-f8": "editor::GoToPreviousHunk",
-      "ctrl-enter": "assistant::InlineAssist",
       "ctrl-:": "editor::ToggleInlayHints"
-    }
-  },
-  {
-    "context": "PromptEditor",
-    "use_key_equivalents": true,
-    "bindings": {
-      "cmd-shift-a": "agent::ToggleContextPicker",
-      "cmd-alt-/": "agent::ToggleModelSelector",
-      "cmd-alt-e": "agent::RemoveAllContext",
-      "ctrl-[": "agent::CyclePreviousInlineAssist",
-      "ctrl-]": "agent::CycleNextInlineAssist"
-    }
-  },
-  {
-    "context": "Prompt",
-    "use_key_equivalents": true,
-    "bindings": {
-      "left": "menu::SelectPrevious",
-      "right": "menu::SelectNext",
-      "h": "menu::SelectPrevious",
-      "l": "menu::SelectNext"
     }
   },
   {
@@ -1001,7 +815,6 @@
       "cmd-a": "editor::SelectAll",
       "cmd-k": "terminal::Clear",
       "cmd-n": "workspace::NewTerminal",
-      "ctrl-enter": "assistant::InlineAssist",
       "ctrl-_": null, // emacs undo
       // Some nice conveniences
       "cmd-backspace": ["terminal::SendText", "\u0015"],

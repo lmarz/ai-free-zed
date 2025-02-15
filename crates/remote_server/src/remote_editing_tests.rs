@@ -3,8 +3,6 @@
 /// We neead to find a way to test Windows-Non-Windows interactions.
 use crate::headless_project::HeadlessProject;
 use client::{Client, UserStore};
-use clock::FakeSystemClock;
-
 use extension::ExtensionHostProxy;
 use fs::{FakeFs, Fs};
 use gpui::{AppContext as _, Entity, SemanticVersion, TestAppContext};
@@ -1611,7 +1609,6 @@ fn build_project(ssh: Entity<SshRemoteClient>, cx: &mut TestAppContext) -> Entit
 
     let client = cx.update(|cx| {
         Client::new(
-            Arc::new(FakeSystemClock::new()),
             FakeHttpClient::with_404_response(),
             cx,
         )
