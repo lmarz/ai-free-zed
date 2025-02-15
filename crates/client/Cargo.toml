@@ -20,7 +20,6 @@ anyhow.workspace = true
 async-recursion = "0.3"
 async-tungstenite = { workspace = true, features = ["async-std", "async-tls"] }
 chrono = { workspace = true, features = ["serde"] }
-clock.workspace = true
 collections.workspace = true
 credentials_provider.workspace = true
 feature_flags.workspace = true
@@ -29,7 +28,6 @@ gpui.workspace = true
 http_client.workspace = true
 http_client_tls.workspace = true
 log.workspace = true
-paths.workspace = true
 parking_lot.workspace = true
 postage.workspace = true
 rand.workspace = true
@@ -39,7 +37,6 @@ schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 settings.workspace = true
-sha2.workspace = true
 smol.workspace = true
 telemetry_events.workspace = true
 text.workspace = true
@@ -49,8 +46,6 @@ tiny_http = "0.8"
 tokio-socks = { version = "0.5.2", default-features = false, features = ["futures-io"] }
 url.workspace = true
 util.workspace = true
-worktree.workspace = true
-telemetry.workspace = true
 workspace-hack.workspace = true
 
 [dev-dependencies]
